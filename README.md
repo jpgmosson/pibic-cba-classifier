@@ -15,7 +15,7 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 - [x] O que é uma regra de associação (X → Y, itemsets, X e Y disjuntos)
 - [x] Suporte, Confiança e Lift
 - [x] Complexidade computacional e itemsets frequentes (2ⁿ, propriedade Apriori / downward closure)
-- [ ] Discretização de variáveis contínuas (terciles, RMEP)
+- [x] Discretização de variáveis contínuas (terciles, RMEP)
 
 ### 2. Apriori
 - [ ] Geração de candidatos por tamanho
