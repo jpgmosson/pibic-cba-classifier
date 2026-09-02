@@ -11,13 +11,13 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 
 ## Roteiro de estudos
 
-### 1. Regras de associação
+### 1. Regras de associação ✅
 - [x] O que é uma regra de associação (X → Y, itemsets, X e Y disjuntos)
 - [x] Suporte, Confiança e Lift
 - [x] Complexidade computacional e itemsets frequentes (2ⁿ, propriedade Apriori / downward closure)
 - [x] Discretização de variáveis contínuas (terciles, RMEP)
 
-### 2. Apriori
+### 2. Apriori 🔄
 - [ ] Geração de candidatos por tamanho
 - [ ] Poda pela propriedade Apriori (downward closure)
 - [ ] Cálculo de suporte de cada candidato
@@ -25,7 +25,7 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 - [ ] Geração de regras a partir dos itemsets frequentes
 - [ ] Filtro final por confiança mínima (minconf)
 
-### 3. FP-Growth
+### 3. FP-Growth 🔄
 - [ ] Limitações do Apriori que motivam o FP-Growth
 - [ ] Estrutura FP-Tree
 - [ ] Ordenação dos itens por frequência
@@ -34,7 +34,7 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 - [ ] Mineração sem geração explícita de candidatos
 - [ ] Comparação de eficiência: Apriori vs FP-Growth
 
-### 4. CBA (Classification Based on Associations)
+### 4. CBA (Classification Based on Associations) 🔄
 - [ ] CARs (Class Association Rules)
 - [ ] CBA-RG (Rule Generation)
 - [ ] CBA-CB (Classifier Building) — visão geral
