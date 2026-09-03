@@ -11,6 +11,9 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 
 ## Roteiro de estudos
 
+🔵 Interestingness-Based Interval Merger for Numeric Association Rules - Artigo guia da pesquisa.
+(https://cdn.aaai.org/KDD/1998/KDD98-018.pdf)
+
 ### 1. Regras de associação ✅
 - [x] O que é uma regra de associação (X → Y, itemsets, X e Y disjuntos)
 - [x] Suporte, Confiança e Lift
