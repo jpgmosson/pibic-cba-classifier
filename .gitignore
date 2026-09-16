@@ -10,3 +10,11 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Dataset redundante com datasets/iris.csv (mesmos dados em formato sqlite)
+datasets/database.sqlite
+
+# Saídas de execução dos experimentos (mantemos apenas um resumo versionado)
+experimentos/resultados/*
+!experimentos/resultados/.gitkeep
+!experimentos/resultados/resumo.csv

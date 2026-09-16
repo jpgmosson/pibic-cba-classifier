@@ -39,26 +39,35 @@ clear:
   or fase2_implementacao/, cite the original source explicitly.
 - **`fase2_implementacao/`** — the actual from-scratch implementation, and the only code that counts
   as the bolsista's contribution for the PIBIC report:
-  - `association_rules.py` — support, confidence, and lift calculations
+  - `association_rules.py` — support, confidence, lift, and transactional encoding
+  - `discretization.py` — equal-frequency (quantile) discretization of continuous attributes
   - `apriori.py` — Apriori frequent-itemset mining
   - `fp_growth.py` — FP-Growth frequent-itemset mining (FP-Tree based alternative to Apriori)
-  - `cba.py` — CBA-RG (rule generation) and CBA-CB (classifier building, M1/M2 variants)
+  - `cba.py` — CBA-RG (rule generation) and CBA-CB (classifier building, M1 variant; M2 is a
+    later-phase extension, not yet implemented)
 
 When asked to implement or fix the classifier itself, work in `fase2_implementacao/`, not
 `fase1_exploracao/`. It is fine to read `fase1_exploracao/` for reference on how pyARC approached a
 problem, but the `fase2_implementacao/` code must remain an independent implementation, not a copy.
 
-All `.py` files in `fase2_implementacao/` currently contain only a module-level docstring describing
-their purpose — no implementation yet.
+Fase 1 (classic CBA baseline) is implemented and tested — see `tests/` for unit tests against a
+hand-verifiable artificial dataset, and `experimentos/` for the reproducible experiment runner used
+on the Iris dataset. The full 5-phase progression plan (baseline → controlled discretization/
+threshold study → CBA-QS multicriteria rule selection → comparative evaluation → consolidation) is
+documented in `docs/PIBIC___João_e_Fábio.pdf`; only phase 1 is done so far.
 
 Other top-level directories:
-- `datasets/` — test datasets (e.g. Iris)
+- `docs/` — the PIBIC review report and 5-phase progression plan (read before starting new phases)
+- `datasets/` — test datasets (`iris.csv`; keep `database.sqlite` out of the repo, it's redundant)
 - `notebooks/` — Jupyter notebooks for exploration/visualization
-- `tests/` — unit tests for `fase2_implementacao/`
+- `tests/` — unit tests for `fase2_implementacao/`, using a small hand-computable artificial dataset
+- `experimentos/` — experiment runner (`runner.py`), YAML configs, and result logs; separate from
+  `tests/` (unit tests) and `fase2_implementacao/` (pure implementation, no experiment/dataset logic)
 
 ## Environment
 
-- Python 3.13 virtualenv at `.venv/` (created via `virtualenv`, no packages installed yet).
-- No `requirements.txt`, `pyproject.toml`, or dependency manifest exists yet — add one when
-  introducing the first dependency (e.g. numpy/pandas for data handling, pytest for testing).
-- No test runner, linter, or build tooling is configured yet.
+- Python 3.13 virtualenv at `.venv/`. Dependencies are pinned in `requirements.txt` (pandas, numpy,
+  pyyaml, pytest) — install with `pip install -r requirements.txt`.
+- Run tests with `pytest tests/`. Run the Iris experiment end-to-end with
+  `python -m experimentos.runner --config experimentos/configs/iris.yaml`.
+- No linter or build tooling is configured yet.

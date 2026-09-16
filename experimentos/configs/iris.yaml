@@ -1,0 +1,27 @@
+# Configuração do experimento baseline do CBA sobre o Iris.
+#
+# Iris tem 150 amostras, 3 classes balanceadas (50 cada) e 4 atributos
+# contínuos — é a base "multiclasse" prevista para a Fase 1 do plano de
+# progressão (docs/PIBIC___João_e_Fábio.pdf, seção 7.1). As bases binária
+# balanceada e binária desbalanceada ficam para fases posteriores.
+
+dataset_path: datasets/iris.csv
+id_column: Id
+class_column: Species
+continuous_columns:
+  - SepalLengthCm
+  - SepalWidthCm
+  - PetalLengthCm
+  - PetalWidthCm
+
+# Discretização por igual-frequência (baseline da Fase 1).
+n_bins: 3
+
+# Limiares do CBA-RG.
+min_support: 0.05
+min_confidence: 0.5
+max_antecedent_length: 3
+
+# Validação cruzada estratificada.
+k_folds: 5
+seed: 42

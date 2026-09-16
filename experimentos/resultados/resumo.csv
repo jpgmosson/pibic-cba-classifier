@@ -1,0 +1,4 @@
+timestamp,dataset,seed,k_folds,accuracy_mean,accuracy_std,num_candidate_rules_mean,num_final_rules_mean,avg_antecedent_length_mean,total_elapsed_seconds,detail_file
+2026-09-16T22:12:49.525832+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.045,iris_20260916T221249Z.json
+2026-09-16T22:18:50.935251+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.074,iris_20260916T221850Z.json
+2026-09-16T22:19:54.231834+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.051,iris_20260916T221954Z.json

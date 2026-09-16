@@ -6,13 +6,13 @@ proposto por Liu, Hsu & Ma (1998). Orientação: Prof. Jonas.
 
 ## Status atual
 
-Em fase de estudo teórico (regras de associação, Apriori, FP-Growth e CBA) antes do início da
-implementação. Reuniões de orientação semanais, às quintas-feiras.
+Fase 1 do plano de progressão (ver `docs/PIBIC___João_e_Fábio.pdf`) concluída: CBA clássico
+(CBA-RG + CBA-CB M1) reproduzido do zero em `fase2_implementacao/`, com testes unitários
+auditáveis à mão em `tests/` e um ambiente de experimentos reprodutível em `experimentos/`,
+rodando ponta a ponta no Iris com validação cruzada estratificada. Reuniões de orientação
+semanais, às quintas-feiras.
 
 ## Roteiro de estudos
-
-🔵 Interestingness-Based Interval Merger for Numeric Association Rules - Artigo guia da pesquisa.
-(https://cdn.aaai.org/KDD/1998/KDD98-018.pdf)
 
 ### 1. Regras de associação ✅
 - [x] O que é uma regra de associação (X → Y, itemsets, X e Y disjuntos)
@@ -21,33 +21,39 @@ implementação. Reuniões de orientação semanais, às quintas-feiras.
 - [x] Discretização de variáveis contínuas (terciles, RMEP)
 
 ### 2. Apriori 🔄
-- [ ] Geração de candidatos por tamanho
-- [ ] Poda pela propriedade Apriori (downward closure)
-- [ ] Cálculo de suporte de cada candidato
-- [ ] Múltiplas varreduras da base de dados
-- [ ] Geração de regras a partir dos itemsets frequentes
-- [ ] Filtro final por confiança mínima (minconf)
+- [x] Geração de candidatos por tamanho
+- [x] Poda pela propriedade Apriori (downward closure)
+- [x] Cálculo de suporte de cada candidato
+- [x] Múltiplas varreduras da base de dados
+- [x] Geração de regras a partir dos itemsets frequentes
+- [x] Filtro final por confiança mínima (minconf)
 
 ### 3. FP-Growth 🔄
-- [ ] Limitações do Apriori que motivam o FP-Growth
-- [ ] Estrutura FP-Tree
-- [ ] Ordenação dos itens por frequência
-- [ ] Construção da FP-Tree
-- [ ] Conditional pattern base e conditional FP-Tree
-- [ ] Mineração sem geração explícita de candidatos
-- [ ] Comparação de eficiência: Apriori vs FP-Growth
+- [x] Limitações do Apriori que motivam o FP-Growth
+- [x] Estrutura FP-Tree
+- [x] Ordenação dos itens por frequência
+- [x] Construção da FP-Tree
+- [x] Conditional pattern base e conditional FP-Tree
+- [x] Mineração sem geração explícita de candidatos
+- [x] Comparação de eficiência: Apriori vs FP-Growth
 
-### 4. CBA (Classification Based on Associations) 🔄
-- [ ] CARs (Class Association Rules)
-- [ ] CBA-RG (Rule Generation)
-- [ ] CBA-CB (Classifier Building) — visão geral
-- [ ] Poda de regras
-- [ ] Ordenação das regras
-- [ ] Database coverage
-- [ ] Regra padrão (default rule)
-- [ ] Algoritmo M1
-- [ ] Algoritmo M2
-- [ ] QCBA (Quantitative CBA)
+### 4. CBA (Classification Based on Associations) ✅
+- [x] CARs (Class Association Rules)
+- [x] CBA-RG (Rule Generation)
+- [x] CBA-CB (Classifier Building) — visão geral
+- [x] Poda de regras
+- [x] Ordenação das regras
+- [x] Database coverage
+- [x] Regra padrão (default rule)
+- [x] Algoritmo M1 — implementado em `fase2_implementacao/cba.py`, com testes unitários
+- [ ] Algoritmo M2 — fica para fase posterior do plano
+- [ ] QCBA (Quantitative CBA) — fica para fase posterior do plano
+
+### 5. Plano de progressão (5 fases) ✅ Fase 1 concluída
+O relatório de revisão em `docs/PIBIC___João_e_Fábio.pdf` define 5 fases: (1) baseline
+auditável — **concluída**; (2) estudo controlado de discretização/limiares; (3) CBA-QS
+(seleção de regras por qualidade + interessância + simplicidade); (4) avaliação comparativa;
+(5) consolidação. As fases 2–5 ainda não foram iniciadas.
 
 ## Metodologia — duas fases
 
@@ -63,22 +69,36 @@ O projeto é dividido deliberadamente em duas fases, para manter clara a autoria
 ## Estrutura do repositório
 
 ```
-├── fase1_exploracao/       # exploração de código de terceiros (aprendizado)
-├── fase2_implementacao/    # implementação própria
-│   ├── association_rules.py   # suporte, confiança, lift
-│   ├── apriori.py              # mineração via Apriori
-│   ├── fp_growth.py            # mineração via FP-Growth
-│   └── cba.py                  # CBA-RG e CBA-CB (M1/M2)
-├── datasets/                # datasets de teste (ex: Iris)
-├── notebooks/                # exploração e visualização
-├── tests/                    # testes unitários
-└── CLAUDE.md                 # contexto do projeto para Claude Code
+├── docs/                     # relatório de revisão e plano de progressão do PIBIC
+├── fase1_exploracao/         # exploração de código de terceiros (aprendizado)
+├── fase2_implementacao/      # implementação própria
+│   ├── association_rules.py     # suporte, confiança, lift, codificação transacional
+│   ├── discretization.py        # discretização por igual-frequência (quantis)
+│   ├── apriori.py                # mineração via Apriori
+│   ├── fp_growth.py              # mineração via FP-Growth
+│   └── cba.py                    # CBA-RG e CBA-CB (M1)
+├── experimentos/             # runner do pipeline completo + configs + resultados
+│   ├── runner.py
+│   ├── configs/iris.yaml
+│   └── resultados/               # saídas por execução (versionado só o resumo.csv)
+├── datasets/                 # datasets de teste (ex: iris.csv)
+├── notebooks/                 # exploração e visualização
+├── tests/                     # testes unitários (base artificial, conferida à mão)
+└── CLAUDE.md                  # contexto do projeto para Claude Code
 ```
 
 ## Ambiente técnico
 
 - Python 3.13 (ambiente virtual em `.venv/`)
-- Dependências: a definir conforme o projeto avança (sem `requirements.txt` ainda)
+- Dependências em `requirements.txt` (pandas, numpy, pyyaml, pytest) — instale com
+  `pip install -r requirements.txt`
+
+## Rodando
+
+```
+pytest tests/
+python -m experimentos.runner --config experimentos/configs/iris.yaml
+```
 
 ## Referências e leituras complementares
 
