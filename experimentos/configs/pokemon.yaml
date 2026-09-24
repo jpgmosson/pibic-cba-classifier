@@ -1,0 +1,49 @@
+# Configuração do experimento "Pokemon with stats" — dataset mais desafiador
+# que o Iris, usado para comparar o CBA-RG com e sem discretização dos
+# atributos contínuos (ver docs/PIBIC___João_e_Fábio.pdf).
+#
+# ~800 linhas (inclui formas "Mega" como linhas extras da mesma espécie
+# base — não filtradas por enquanto). Classe Legendary é fortemente
+# desbalanceada (~8% True), então além da acurácia o runner também registra
+# recall da classe positiva e uso da classe padrão (ver seção 7.2 do
+# relatório: em forte desbalanceamento, acurácia sozinha engana).
+
+dataset_path: datasets/Pokemon.csv
+csv_sep: ";"
+id_column: "#"
+class_column: Legendary
+positive_class: "True"
+
+# Apenas os 6 stats numéricos contínuos como preditores — ignora Name,
+# Type 1, Type 2, Total (redundante: soma dos outros seis) e Generation
+# para isolar o efeito da discretização sobre atributos contínuos.
+feature_columns:
+  - HP
+  - Attack
+  - Defense
+  - Sp. Atk
+  - Sp. Def
+  - Speed
+continuous_columns:
+  - HP
+  - Attack
+  - Defense
+  - Sp. Atk
+  - Sp. Def
+  - Speed
+
+# Discretização por igual-frequência. Pode ser desligada por linha de
+# comando com --sem-discretizar (ver runner.py) para comparar o efeito.
+discretizar: true
+n_bins: 3
+
+# Limiares do CBA-RG. min_support mais baixo que o do Iris porque a classe
+# positiva (Legendary=True) já é só ~8% dos dados — um minsup alto faria o
+# CBA-RG nunca considerar itemsets restritos a ela, discretização ou não.
+min_support: 0.03
+min_confidence: 0.5
+max_antecedent_length: 3
+
+# Validação cruzada estratificada.
+k_folds: 5
+seed: 42

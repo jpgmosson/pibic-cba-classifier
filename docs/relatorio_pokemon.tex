@@ -1,0 +1,246 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage{booktabs}
+\usepackage[margin=2.5cm]{geometry}
+
+\title{Relatório de Experimento: Avaliação do Classificador CBA no Dataset\\ Pokémon com e sem Discretização de Atributos Contínuos}
+\author{João Mosson}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introdução}
+
+Este relatório documenta um experimento realizado no âmbito do projeto de
+Iniciação Científica (PIBIC) descrito em
+\texttt{docs/PIBIC\_\_\_João\_e\_Fábio.pdf}, cujo objetivo geral é a
+implementação, a partir do zero, de um classificador baseado em regras de
+associação de classe (\emph{Class Association Rules}, CARs) segundo o
+algoritmo CBA (\emph{Classification Based on Associations}), proposto por
+Liu, Hsu e Ma (1998), composto pelas etapas CBA-RG (geração de regras) e
+CBA-CB (construção do classificador).
+
+Na etapa atual do projeto, o classificador CBA já havia sido validado sobre
+o dataset Iris, um baseline simples de referência na literatura. A pedido do
+orientador, o passo seguinte foi avaliar o comportamento do classificador em
+um dataset mais desafiador, testando-o em dois cenários: (i) sem qualquer
+etapa de discretização dos atributos contínuos, isto é, com os valores
+numéricos brutos entrando diretamente na codificação transacional, e (ii)
+com a discretização por igual-frequência (quantis) já empregada no baseline
+do Iris. O objetivo deste teste específico foi verificar empiricamente o
+papel da discretização na capacidade do CBA-RG de gerar regras úteis sobre
+atributos numéricos, e como isso se reflete na qualidade do classificador
+final — em particular sobre uma classe minoritária.
+
+\section{Dataset Utilizado}
+
+O dataset escolhido para este teste foi o \emph{Pokémon with stats}
+(disponibilizado publicamente no Kaggle), contendo 800 exemplares de
+Pokémon (incluindo variantes ``Mega'' de uma mesma espécie base, tratadas
+como linhas independentes) e 13 colunas originais, das quais foram
+utilizadas:
+
+\begin{itemize}
+    \item \textbf{Atributos preditores} (contínuos): \texttt{HP},
+    \texttt{Attack}, \texttt{Defense}, \texttt{Sp.\ Atk}, \texttt{Sp.\ Def}
+    e \texttt{Speed} — os seis atributos de status numéricos do jogo.
+    \item \textbf{Variável-alvo}: \texttt{Legendary} (booleana), indicando
+    se o Pokémon pertence à categoria ``lendário''.
+\end{itemize}
+
+As colunas \texttt{Name}, \texttt{Type~1}, \texttt{Type~2}, \texttt{Total}
+(soma redundante dos seis status) e \texttt{Generation} foram
+deliberadamente excluídas do conjunto de atributos preditores, de modo a
+isolar o efeito da discretização especificamente sobre atributos
+contínuos, sem misturar decisões sobre codificação de atributos
+categóricos.
+
+A classe \texttt{Legendary} é fortemente desbalanceada: dos 800 exemplos,
+apenas 65 (8,125\%) são lendários (\texttt{True}), enquanto 735 (91,875\%)
+não são. Esse desbalanceamento é o que torna o dataset mais desafiador do
+que o Iris (que possui três classes perfeitamente balanceadas, com 50
+exemplos cada): além de introduzir uma classe minoritária de interesse
+prático, o desbalanceamento faz com que a acurácia bruta deixe de ser, por
+si só, um indicador confiável de qualidade do classificador — um
+classificador trivial que sempre prevê a classe majoritária já atinge
+91,875\% de acurácia sem aprender absolutamente nada sobre a classe
+minoritária.
+
+\section{Metodologia}
+
+O classificador CBA foi implementado do zero, em duas etapas principais:
+
+\begin{itemize}
+    \item \textbf{CBA-RG} (\emph{Rule Generator}): minera, via Apriori, os
+    itemsets frequentes das transações de treino (acima de um suporte
+    mínimo \texttt{min\_support}) e retém aqueles cujo único item de classe
+    define o consequente de uma CAR, filtrando por confiança mínima
+    (\texttt{min\_confidence}).
+    \item \textbf{CBA-CB}, variante M1: ordena as CARs por precedência
+    (confiança, depois suporte, depois ordem de descoberta) e constrói o
+    classificador final por cobertura sequencial de banco de dados
+    (\emph{database coverage}): cada regra, na ordem de precedência, é
+    incorporada ao classificador se cobrir corretamente ao menos um
+    exemplo de treino ainda não coberto por regras anteriores; ao final, a
+    classe padrão (\emph{default class}) é a classe majoritária entre os
+    exemplos que permaneceram não cobertos por nenhuma regra selecionada.
+\end{itemize}
+
+Atributos contínuos, quando discretizados, passam por um discretizador de
+igual-frequência (quantis), ajustado exclusivamente sobre os dados de
+treino de cada dobra de validação cruzada (nunca sobre o teste, para evitar
+vazamento de informação), dividindo cada atributo em faixas com
+aproximadamente o mesmo número de exemplos.
+
+Para viabilizar a comparação com e sem discretização sem alterar a lógica
+do CBA-RG/CBA-CB, foi implementado um mecanismo de alternância
+(\emph{toggle}) no script de execução de experimentos
+(\texttt{experimentos/runner.py}): um campo \texttt{discretizar} no arquivo
+de configuração YAML do experimento (com valor padrão \texttt{true}) e uma
+flag de linha de comando \texttt{--sem-discretizar} que o sobrescreve.
+Quando desativada, a etapa de discretização é simplesmente pulada, e os
+valores numéricos brutos entram na codificação transacional exatamente como
+lidos do dataset — cada valor distinto passa a ser tratado como um item
+categórico próprio.
+
+Ambos os cenários (com e sem discretização) foram executados sobre o mesmo
+conjunto de dados, com validação cruzada estratificada em 5 dobras
+(\texttt{k\_folds = 5}) e semente fixa (\texttt{seed = 42}, garantindo que
+as mesmas partições de treino/teste — 640 exemplos de treino e 160 de teste
+por dobra — sejam usadas nos dois cenários). Os limiares do CBA-RG foram
+\texttt{min\_support = 0{,}03}, \texttt{min\_confidence = 0{,}5} e
+comprimento máximo de antecedente igual a 3; no cenário com discretização,
+foram usadas 3 faixas por atributo (\texttt{n\_bins = 3}).
+
+Além da acurácia, foram registradas métricas voltadas para o
+desbalanceamento de classes: o \emph{recall} da classe positiva
+(\texttt{Legendary = True}), isto é, a proporção de lendários corretamente
+identificados, e a taxa de uso da classe padrão no conjunto de teste — a
+fração dos exemplos de teste para os quais nenhuma regra do classificador
+foi satisfeita, tendo a predição recaído sobre a classe majoritária por
+ausência de cobertura.
+
+\section{Resultados}
+
+A Tabela~\ref{tab:resultados} apresenta os resultados médios das 5 dobras
+de validação cruzada para os dois cenários testados no dataset Pokémon.
+
+\begin{table}[h]
+\centering
+\caption{Comparação entre os cenários sem e com discretização (dataset
+Pokémon, médias sobre 5 dobras).}
+\label{tab:resultados}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Sem discretização} & \textbf{Com discretização} \\
+\midrule
+Acurácia média & 0,9187 & 0,9200 \\
+Desvio padrão da acurácia & 0,0000 & 0,0025 \\
+Recall (Legendary = True) & 0,0000 & 0,0154 \\
+Regras candidatas (CARs) & 64,2 & 402,8 \\
+Regras finais no classificador & 58,2 & 49,2 \\
+Comprimento médio do antecedente & 1,01 & 1,86 \\
+Uso da classe padrão (teste) & 11,00\% (88/800) & 0,00\% (0/800) \\
+Tempo total de execução (5 dobras) & 0,343~s & 0,333~s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussão}
+
+O primeiro ponto a destacar é que a acurácia, isoladamente, é praticamente
+indistinguível entre os dois cenários (0,9187 vs.\ 0,9200) — e ambas ficam
+muito próximas do valor trivial que seria obtido por um classificador que
+sempre prevê a classe majoritária (735/800 = 91,875\%). Isso confirma, na
+prática, o alerta feito na metodologia do projeto: em um cenário de forte
+desbalanceamento de classes, a acurácia isolada é uma métrica enganosa, e a
+verdadeira diferença de qualidade entre os dois classificadores só aparece
+ao observar o \emph{recall} da classe minoritária.
+
+Sem discretização, o classificador obteve recall nulo para
+\texttt{Legendary = True}: nenhum Pokémon lendário do conjunto de teste foi
+corretamente identificado, em nenhuma das 5 dobras. Isso é consistente com
+o mecanismo esperado do CBA-RG sobre atributos verdadeiramente contínuos:
+como cada valor numérico bruto é tratado como um item categórico distinto,
+a correspondência exata de valores tende a ser rara, reduzindo o suporte de
+itemsets que a envolvem. Vale registrar, no entanto, uma particularidade
+deste dataset: como os atributos de status do jogo são inteiros com forte
+repetição de valores redondos (por exemplo, o valor \texttt{HP\,=\,60}
+sozinho aparece em 67 das 800 linhas, um suporte de 8,4\%, acima do
+\texttt{min\_support} configurado), o CBA-RG ainda foi capaz de gerar 64,2
+CARs em média — um número não desprezível, embora bem menor do que no
+cenário discretizado. Isso mostra que o problema da correspondência exata
+de valores é uma questão de granularidade dos dados (mais severa quanto
+mais contínua e de maior precisão for a medida), e não uma impossibilidade
+absoluta de gerar regras sem discretização.
+
+Com discretização, o número de CARs geradas salta para 402,8 em média — um
+aumento de mais de seis vezes —, e o classificador final passa a cobrir
+100\% dos exemplos de teste (uso da classe padrão igual a zero, contra 11\%
+no cenário sem discretização). O recall da classe positiva também sobe, de
+0,0000 para 0,0154. Note-se, porém, que esse ganho, embora real, é modesto:
+apesar de o CBA-RG conseguir gerar regras específicas para
+\texttt{Legendary = True} — foi possível confirmar manualmente a existência
+de CARs como
+\{\texttt{Sp.\,Atk=bin2}, \texttt{Speed=bin2}, \texttt{Defense=bin2}\}
+$\Rightarrow$ \texttt{True}, com confiança em torno de 0,58 —, essas regras
+possuem antecedentes mais longos (3 condições) e confiança apenas
+ligeiramente acima do mínimo exigido. Na etapa CBA-CB, a cobertura
+sequencial de banco de dados prioriza regras de maior confiança e, em caso
+de empate, maior suporte; como as faixas de discretização são calculadas
+sobre a base completa (sem distinção de classe), regras mais curtas e mais
+confiantes que apontam para a classe majoritária acabam cobrindo grande
+parte dos exemplos — inclusive lendários — antes que as regras específicas
+da classe minoritária cheguem à sua vez na ordem de precedência. O
+resultado é uma cobertura completa do conjunto de teste, mas com a maioria
+dos lendários ainda sendo classificados incorretamente como não lendários.
+
+Em conjunto, os resultados indicam que a discretização é uma etapa
+importante para permitir que o CBA-RG explore combinações de atributos
+contínuos que, em sua forma bruta, teriam suporte insuficiente para serem
+consideradas — o que se reflete diretamente na quantidade de regras
+geradas e na cobertura do classificador. No entanto, a discretização por
+si só não é suficiente para resolver o desafio de uma classe fortemente
+minoritária: a estratégia de ordenação e cobertura sequencial do CBA-CB
+(variante M1), ao priorizar regras de alta confiança sem qualquer
+tratamento específico para desbalanceamento, tende a favorecer
+sistematicamente a classe majoritária mesmo quando regras válidas para a
+classe minoritária existem.
+
+\section{Conclusão}
+
+O experimento confirma duas conclusões complementares. Primeiro, a etapa de
+discretização tem impacto direto e mensurável na capacidade do CBA-RG de
+gerar regras de associação de classe a partir de atributos contínuos: sem
+ela, o número de CARs geradas cai de 402,8 para 64,2 em média, e a
+cobertura do classificador final cai de 100\% para 89\% dos exemplos de
+teste. Segundo, e talvez mais importante para o desenvolvimento do
+projeto, a discretização isoladamente não é suficiente para que o
+classificador base (CBA-RG + CBA-CB variante M1) trate adequadamente uma
+classe fortemente minoritária: mesmo com cobertura completa do conjunto de
+teste, o recall da classe \texttt{Legendary\,=\,True} permanece muito
+baixo (1,54\%), pois o critério de precedência por confiança/suporte do
+CBA-CB tende a esgotar a cobertura dos exemplos com regras da classe
+majoritária antes de dar chance às regras — mais específicas e de
+confiança mais modesta — associadas à classe minoritária.
+
+Este resultado se enquadra na Fase 1 do plano de progressão do projeto
+(validação do CBA clássico como baseline, conforme
+\texttt{docs/PIBIC\_\_\_João\_e\_Fábio.pdf}), e reforça a motivação para as
+fases seguintes do cronograma: em particular, a fase de CBA-QS, que
+propõe um critério de seleção de regras guiado por qualidade e
+simplicidade, é uma candidata natural para mitigar o viés de cobertura em
+favor da classe majoritária aqui observado, ao permitir que regras de
+menor suporte mas de valor discriminativo elevado para a classe minoritária
+sejam priorizadas na construção do classificador final. Como próximo passo
+imediato, propõe-se investigar o efeito de discretizações sensíveis à
+classe (calculadas separadamente por rótulo, e não sobre a base agrupada)
+e de critérios alternativos de ordenação de regras sobre o recall da classe
+minoritária, antes de avançar para a fase comparativa do plano.
+
+\end{document}

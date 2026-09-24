@@ -4,24 +4,34 @@ partir de um arquivo de configuração YAML.
 Uso:
 
     python -m experimentos.runner --config experimentos/configs/iris.yaml
+    python -m experimentos.runner --config experimentos/configs/pokemon.yaml --sem-discretizar
 
 Para cada fold de uma validação cruzada estratificada, o runner:
 
 1. Separa treino e teste do fold.
-2. Ajusta o discretizador (``EqualFrequencyDiscretizer``) **apenas** nos
-   dados de treino do fold, e o aplica em treino e teste — a discretização
-   nunca vê o teste antes de ser ajustada, para evitar vazamento de
-   informação (ver seção 7.3 de ``docs/PIBIC___João_e_Fábio.pdf``).
+2. Se ``discretizar`` (config, padrão true) estiver ativo — e a flag de CLI
+   ``--sem-discretizar`` não tiver sido passada —, ajusta o discretizador
+   (``EqualFrequencyDiscretizer``) **apenas** nos dados de treino do fold, e
+   o aplica em treino e teste — a discretização nunca vê o teste antes de
+   ser ajustada, para evitar vazamento de informação (ver seção 7.3 de
+   ``docs/PIBIC___João_e_Fábio.pdf``). Se ``discretizar`` for false, os
+   atributos contínuos entram crus na codificação transacional (cada valor
+   numérico distinto vira seu próprio item) — a lógica de CBA-RG/CBA-CB não
+   muda, só a etapa de preparação dos dados é pulada.
 3. Codifica treino e teste em transações e roda CBA-RG (``generate_cars``)
    e CBA-CB M1 (``build_classifier_m1``) usando apenas o treino.
-4. Avalia o classificador resultante no teste do fold.
+4. Avalia o classificador resultante no teste do fold: acurácia e, se
+   ``positive_class`` estiver definido no config, recall dessa classe e
+   quantas vezes a classe padrão foi usada (cobertura do classificador).
 
 Ao final, grava um JSON detalhado por execução em
-``experimentos/resultados/`` (ignorado pelo git) e acrescenta uma linha de
-resumo a ``experimentos/resultados/resumo.csv`` (versionado), contendo:
-semente, partições (tamanho de treino/teste por fold), tempo de execução,
-número de regras candidatas e finais, comprimento médio do antecedente,
-acurácia por fold e versão das dependências instaladas.
+``experimentos/resultados/`` (ignorado pelo git; o nome do arquivo indica se
+a execução usou discretização) e acrescenta uma linha de resumo a
+``experimentos/resultados/resumo.csv`` (versionado), contendo: se
+discretizou, semente, partições (tamanho de treino/teste por fold), tempo de
+execução, número de regras candidatas e finais, comprimento médio do
+antecedente, acurácia por fold, uso da classe padrão, recall da classe
+positiva (quando configurada) e versão das dependências instaladas.
 """
 
 from __future__ import annotations
@@ -66,6 +76,10 @@ def load_config(config_path: Path) -> dict:
     missing = required - config.keys()
     if missing:
         raise ValueError(f"config incompleto, faltando: {sorted(missing)}")
+    config.setdefault("discretizar", True)
+    config.setdefault("csv_sep", ",")
+    config.setdefault("feature_columns", None)
+    config.setdefault("positive_class", None)
     return config
 
 
@@ -106,21 +120,34 @@ def dependency_versions() -> dict[str, str]:
     return versions
 
 
+def _count_default_usage(classifier, transactions) -> int:
+    """Conta quantas transações não são cobertas por nenhuma regra do classificador
+    (isto é, quantas vezes a predição recai na classe padrão)."""
+    return sum(1 for t in transactions if not any(rule.matches(t) for rule in classifier.rules))
+
+
 def run_fold(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     config: dict,
 ) -> dict:
     class_column = config["class_column"]
-    feature_columns = [c for c in train_df.columns if c != class_column]
-
-    discretizer = EqualFrequencyDiscretizer(n_bins=config["n_bins"], columns=config["continuous_columns"])
-    train_discretized = discretizer.fit_transform(train_df)
-    test_discretized = discretizer.transform(test_df)
-
+    feature_columns = config["feature_columns"] or [c for c in train_df.columns if c != class_column]
     columns_used = feature_columns + [class_column]
-    train_transactions = dataframe_to_transactions(train_discretized[columns_used], class_column)
-    test_transactions = dataframe_to_transactions(test_discretized[columns_used], class_column)
+
+    if config["discretizar"]:
+        discretizer = EqualFrequencyDiscretizer(n_bins=config["n_bins"], columns=config["continuous_columns"])
+        train_encoded = discretizer.fit_transform(train_df[columns_used])
+        test_encoded = discretizer.transform(test_df[columns_used])
+    else:
+        # Sem discretização: atributos contínuos entram no CBA-RG com seus
+        # valores brutos — cada valor numérico distinto vira seu próprio item
+        # (dataframe_to_transactions apenas converte cada valor para str).
+        train_encoded = train_df[columns_used]
+        test_encoded = test_df[columns_used]
+
+    train_transactions = dataframe_to_transactions(train_encoded, class_column)
+    test_transactions = dataframe_to_transactions(test_encoded, class_column)
     train_labels = train_df[class_column].astype(str).tolist()
     test_labels = test_df[class_column].astype(str).tolist()
 
@@ -138,25 +165,43 @@ def run_fold(
     predictions = classifier.predict_many(test_transactions)
     accuracy = sum(p == y for p, y in zip(predictions, test_labels)) / len(test_labels)
 
-    antecedent_lengths = [len(rule.antecedent) for rule in classifier.rules]
-    return {
+    default_usage = _count_default_usage(classifier, test_transactions)
+
+    result = {
         "train_size": len(train_df),
         "test_size": len(test_df),
         "elapsed_seconds": elapsed,
         "num_candidate_rules": len(cars),
         "num_final_rules": len(classifier.rules),
-        "avg_antecedent_length": mean(antecedent_lengths) if antecedent_lengths else 0.0,
+        "avg_antecedent_length": mean(len(rule.antecedent) for rule in classifier.rules)
+        if classifier.rules
+        else 0.0,
         "accuracy": accuracy,
+        "default_class_usage": default_usage,
+        "default_class_usage_rate": default_usage / len(test_labels),
     }
+
+    positive_class = config["positive_class"]
+    if positive_class is not None:
+        true_positives = sum(1 for p, y in zip(predictions, test_labels) if y == positive_class and p == positive_class)
+        false_negatives = sum(1 for p, y in zip(predictions, test_labels) if y == positive_class and p != positive_class)
+        denom = true_positives + false_negatives
+        result["recall_positive_class"] = (true_positives / denom) if denom > 0 else None
+
+    return result
 
 
 def run_experiment(config: dict) -> dict:
     dataset_path = REPO_ROOT / config["dataset_path"]
-    df = pd.read_csv(dataset_path)
+    df = pd.read_csv(dataset_path, sep=config["csv_sep"])
     if config.get("id_column") and config["id_column"] in df.columns:
         df = df.drop(columns=[config["id_column"]])
 
     class_column = config["class_column"]
+    if config["feature_columns"] is None:
+        config["feature_columns"] = [c for c in df.columns if c != class_column]
+    df = df[config["feature_columns"] + [class_column]]
+
     labels = df[class_column].astype(str).tolist()
     folds = stratified_kfold_indices(labels, config["k_folds"], config["seed"])
 
@@ -173,8 +218,12 @@ def run_experiment(config: dict) -> dict:
     total_elapsed = time.perf_counter() - total_start
 
     accuracies = [r["accuracy"] for r in fold_results]
+    default_usage_rates = [r["default_class_usage_rate"] for r in fold_results]
+    recalls = [r["recall_positive_class"] for r in fold_results if r.get("recall_positive_class") is not None]
+
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "discretizar": config["discretizar"],
         "config": config,
         "dependency_versions": dependency_versions(),
         "folds": fold_results,
@@ -183,6 +232,9 @@ def run_experiment(config: dict) -> dict:
         "num_candidate_rules_mean": mean(r["num_candidate_rules"] for r in fold_results),
         "num_final_rules_mean": mean(r["num_final_rules"] for r in fold_results),
         "avg_antecedent_length_mean": mean(r["avg_antecedent_length"] for r in fold_results),
+        "default_class_usage_total": sum(r["default_class_usage"] for r in fold_results),
+        "default_class_usage_rate_mean": mean(default_usage_rates),
+        "recall_positive_class_mean": mean(recalls) if recalls else None,
         "total_elapsed_seconds": total_elapsed,
     }
     return summary
@@ -191,11 +243,17 @@ def run_experiment(config: dict) -> dict:
 def write_results(summary: dict, dataset_name: str) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    detail_path = RESULTS_DIR / f"{dataset_name}_{timestamp}.json"
+    discretizar_suffix = "discretizado" if summary["discretizar"] else "sem_discretizacao"
+    detail_path = RESULTS_DIR / f"{dataset_name}_{discretizar_suffix}_{timestamp}.json"
     with open(detail_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
     summary_path = RESULTS_DIR / "resumo.csv"
+    # Colunas novas são sempre acrescentadas ao FINAL do cabeçalho e das
+    # linhas (nunca inseridas no meio) para preservar a compatibilidade
+    # posicional das linhas já gravadas por versões anteriores deste script:
+    # o pandas lê linhas mais curtas que o cabeçalho preenchendo NaN à
+    # direita, mas quebra se alguma linha tiver mais campos que o cabeçalho.
     is_new = not summary_path.exists()
     with open(summary_path, "a", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
@@ -213,8 +271,12 @@ def write_results(summary: dict, dataset_name: str) -> Path:
                     "avg_antecedent_length_mean",
                     "total_elapsed_seconds",
                     "detail_file",
+                    "discretizar",
+                    "default_class_usage_rate_mean",
+                    "recall_positive_class_mean",
                 ]
             )
+        recall_value = summary["recall_positive_class_mean"]
         writer.writerow(
             [
                 summary["timestamp"],
@@ -228,6 +290,9 @@ def write_results(summary: dict, dataset_name: str) -> Path:
                 f"{summary['avg_antecedent_length_mean']:.2f}",
                 f"{summary['total_elapsed_seconds']:.3f}",
                 detail_path.name,
+                summary["discretizar"],
+                f"{summary['default_class_usage_rate_mean']:.4f}",
+                f"{recall_value:.4f}" if recall_value is not None else "",
             ]
         )
     return detail_path
@@ -241,14 +306,23 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(description="Roda o pipeline CBA sobre um dataset via config YAML.")
     parser.add_argument("--config", required=True, type=Path, help="Caminho do arquivo de configuração YAML.")
+    parser.add_argument(
+        "--sem-discretizar",
+        action="store_true",
+        help="Pula a etapa de discretização, sobrescrevendo 'discretizar' do config para false.",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
+    if args.sem_discretizar:
+        config["discretizar"] = False
+
     summary = run_experiment(config)
     dataset_name = Path(config["dataset_path"]).stem
     detail_path = write_results(summary, dataset_name)
 
     print(f"Dataset: {dataset_name}")
+    print(f"Discretização: {'sim' if summary['discretizar'] else 'não'}")
     print(f"Seed: {config['seed']}  |  k_folds: {config['k_folds']}")
     print(f"Acurácia média: {summary['accuracy_mean']:.4f} (desvio padrão: {summary['accuracy_std']:.4f})")
     print(
@@ -257,6 +331,13 @@ def main(argv: list[str] | None = None) -> None:
         f"Regras finais (média): {summary['num_final_rules_mean']:.1f}  |  "
         f"Comprimento médio do antecedente: {summary['avg_antecedent_length_mean']:.2f}"
     )
+    print(
+        "Uso da classe padrão no teste (média): "
+        f"{summary['default_class_usage_rate_mean']:.4f}  |  "
+        f"total de casos: {summary['default_class_usage_total']}"
+    )
+    if summary["recall_positive_class_mean"] is not None:
+        print(f"Recall da classe positiva ({config['positive_class']!r}) (média): {summary['recall_positive_class_mean']:.4f}")
     print(f"Tempo total: {summary['total_elapsed_seconds']:.3f}s")
     print(f"Detalhes salvos em: {detail_path.relative_to(REPO_ROOT)}")
 

@@ -1,4 +1,8 @@
-timestamp,dataset,seed,k_folds,accuracy_mean,accuracy_std,num_candidate_rules_mean,num_final_rules_mean,avg_antecedent_length_mean,total_elapsed_seconds,detail_file
+timestamp,dataset,seed,k_folds,accuracy_mean,accuracy_std,num_candidate_rules_mean,num_final_rules_mean,avg_antecedent_length_mean,total_elapsed_seconds,detail_file,discretizar,default_class_usage_rate_mean,recall_positive_class_mean
 2026-09-16T22:12:49.525832+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.045,iris_20260916T221249Z.json
 2026-09-16T22:18:50.935251+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.074,iris_20260916T221850Z.json
 2026-09-16T22:19:54.231834+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.051,iris_20260916T221954Z.json
+2026-09-17T16:49:16.329477+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.044,iris_20260917T164916Z.json
+2026-09-24T02:00:04.621024+00:00,iris,42,5,0.9400,0.0133,76.4,10.4,1.96,0.039,iris_discretizado_20260924T020004Z.json,True,0.0000,
+2026-09-24T02:00:05.470557+00:00,Pokemon,42,5,0.9200,0.0025,402.8,49.2,1.86,0.333,Pokemon_discretizado_20260924T020005Z.json,True,0.0000,0.0154
+2026-09-24T02:00:06.310555+00:00,Pokemon,42,5,0.9187,0.0000,64.2,58.2,1.01,0.343,Pokemon_sem_discretizacao_20260924T020006Z.json,False,0.1100,0.0000

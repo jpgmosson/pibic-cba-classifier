@@ -14,7 +14,9 @@ continuous_columns:
   - PetalLengthCm
   - PetalWidthCm
 
-# Discretização por igual-frequência (baseline da Fase 1).
+# Discretização por igual-frequência (baseline da Fase 1). Pode ser
+# desligada por linha de comando com --sem-discretizar (ver runner.py).
+discretizar: true
 n_bins: 3
 
 # Limiares do CBA-RG.
