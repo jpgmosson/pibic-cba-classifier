@@ -47,3 +47,16 @@ max_antecedent_length: 3
 # Validação cruzada estratificada.
 k_folds: 5
 seed: 42
+
+# Variante do CBA-CB (construção do classificador a partir das CARs geradas
+# pelo CBA-RG, que é o mesmo nos dois casos): "m1" é a cobertura clássica
+# ordenada por confiança/suporte (Liu, Hsu & Ma, 1998); "cba_qs" usa o
+# escore multicritério S(r) de fase2_implementacao/cba_qs.py (Fase 3 do
+# projeto), pensado para não deixar regras da classe minoritária serem
+# sempre enterradas por regras "óbvias" da classe majoritária. Pode ser
+# sobrescrito por linha de comando com --cb-variant.
+cb_variant: m1
+# Pesos [w1, w2, w3, w4] do CBA-QS (ver docstring de cba_qs.py). O
+# documento do projeto não sugere valores padrão; null usa pesos iguais
+# (0.25 cada), a decisão inicial explícita até a fase de ablação.
+cba_qs_weights: null

@@ -5,6 +5,7 @@ Uso:
 
     python -m experimentos.runner --config experimentos/configs/iris.yaml
     python -m experimentos.runner --config experimentos/configs/pokemon.yaml --sem-discretizar
+    python -m experimentos.runner --config experimentos/configs/pokemon.yaml --cb-variant cba_qs
 
 Para cada fold de uma validação cruzada estratificada, o runner:
 
@@ -19,7 +20,15 @@ Para cada fold de uma validação cruzada estratificada, o runner:
    numérico distinto vira seu próprio item) — a lógica de CBA-RG/CBA-CB não
    muda, só a etapa de preparação dos dados é pulada.
 3. Codifica treino e teste em transações e roda CBA-RG (``generate_cars``)
-   e CBA-CB M1 (``build_classifier_m1``) usando apenas o treino.
+   usando apenas o treino, e então o CBA-CB na variante escolhida por
+   ``cb_variant`` (config, padrão ``"m1"``, sobrescrevível por
+   ``--cb-variant``): ``"m1"`` usa ``build_classifier_m1`` (ordenação
+   clássica por confiança/suporte); ``"cba_qs"`` usa
+   ``build_classifier_cba_qs`` (ordenação pelo escore S(r) de
+   ``fase2_implementacao/cba_qs.py``, com pesos configuráveis via
+   ``cba_qs_weights`` no YAML — lista de 4 números ``[w1, w2, w3, w4]``;
+   ``null``/omitido usa os pesos padrão do módulo). Em ambos os casos o
+   CBA-RG é idêntico — só a etapa de seleção/ordenação de regras muda.
 4. Avalia o classificador resultante no teste do fold: acurácia e, se
    ``positive_class`` estiver definido no config, recall dessa classe e
    quantas vezes a classe padrão foi usada (cobertura do classificador).
@@ -53,6 +62,8 @@ import yaml
 
 from fase2_implementacao.association_rules import dataframe_to_transactions
 from fase2_implementacao.cba import build_classifier_m1, generate_cars
+from fase2_implementacao.cba_qs import DEFAULT_WEIGHTS as CBA_QS_DEFAULT_WEIGHTS
+from fase2_implementacao.cba_qs import build_classifier_cba_qs
 from fase2_implementacao.discretization import EqualFrequencyDiscretizer
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -80,6 +91,10 @@ def load_config(config_path: Path) -> dict:
     config.setdefault("csv_sep", ",")
     config.setdefault("feature_columns", None)
     config.setdefault("positive_class", None)
+    config.setdefault("cb_variant", "m1")
+    config.setdefault("cba_qs_weights", None)
+    if config["cb_variant"] not in ("m1", "cba_qs"):
+        raise ValueError(f"cb_variant deve ser 'm1' ou 'cba_qs', recebido: {config['cb_variant']!r}")
     return config
 
 
@@ -159,7 +174,13 @@ def run_fold(
         min_confidence=config["min_confidence"],
         max_antecedent_length=config.get("max_antecedent_length"),
     )
-    classifier = build_classifier_m1(cars, train_transactions, train_labels, class_attribute=class_column)
+    if config["cb_variant"] == "cba_qs":
+        weights = tuple(config["cba_qs_weights"]) if config["cba_qs_weights"] else CBA_QS_DEFAULT_WEIGHTS
+        classifier = build_classifier_cba_qs(
+            cars, train_transactions, train_labels, class_attribute=class_column, weights=weights
+        )
+    else:
+        classifier = build_classifier_m1(cars, train_transactions, train_labels, class_attribute=class_column)
     elapsed = time.perf_counter() - start
 
     predictions = classifier.predict_many(test_transactions)
@@ -224,6 +245,7 @@ def run_experiment(config: dict) -> dict:
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "discretizar": config["discretizar"],
+        "cb_variant": config["cb_variant"],
         "config": config,
         "dependency_versions": dependency_versions(),
         "folds": fold_results,
@@ -274,6 +296,7 @@ def write_results(summary: dict, dataset_name: str) -> Path:
                     "discretizar",
                     "default_class_usage_rate_mean",
                     "recall_positive_class_mean",
+                    "cb_variant",
                 ]
             )
         recall_value = summary["recall_positive_class_mean"]
@@ -293,6 +316,7 @@ def write_results(summary: dict, dataset_name: str) -> Path:
                 summary["discretizar"],
                 f"{summary['default_class_usage_rate_mean']:.4f}",
                 f"{recall_value:.4f}" if recall_value is not None else "",
+                summary["cb_variant"],
             ]
         )
     return detail_path
@@ -311,11 +335,18 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Pula a etapa de discretização, sobrescrevendo 'discretizar' do config para false.",
     )
+    parser.add_argument(
+        "--cb-variant",
+        choices=["m1", "cba_qs"],
+        help="Sobrescreve 'cb_variant' do config: 'm1' (CBA-CB clássico) ou 'cba_qs' (seleção por escore S(r), ver fase2_implementacao/cba_qs.py).",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
     if args.sem_discretizar:
         config["discretizar"] = False
+    if args.cb_variant:
+        config["cb_variant"] = args.cb_variant
 
     summary = run_experiment(config)
     dataset_name = Path(config["dataset_path"]).stem
@@ -323,6 +354,7 @@ def main(argv: list[str] | None = None) -> None:
 
     print(f"Dataset: {dataset_name}")
     print(f"Discretização: {'sim' if summary['discretizar'] else 'não'}")
+    print(f"Variante CBA-CB: {summary['cb_variant']}")
     print(f"Seed: {config['seed']}  |  k_folds: {config['k_folds']}")
     print(f"Acurácia média: {summary['accuracy_mean']:.4f} (desvio padrão: {summary['accuracy_std']:.4f})")
     print(
