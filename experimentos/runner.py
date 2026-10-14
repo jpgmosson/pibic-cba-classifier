@@ -68,7 +68,7 @@ from statistics import mean, pstdev
 import pandas as pd
 import yaml
 
-from experimentos.metricas import compute_metrics
+from experimentos.metricas import METRIC_KEYS, bootstrap_ci, compute_metrics
 from fase2_implementacao.association_rules import dataframe_to_feature_transactions, dataframe_to_transactions
 from fase2_implementacao.cba import build_classifier_m1, generate_cars, majority_class, sort_cars_by_precedence
 from fase2_implementacao.cba_qs import DEFAULT_WEIGHTS as CBA_QS_DEFAULT_WEIGHTS
@@ -601,6 +601,36 @@ def run_experiment(config: dict) -> dict:
     majority_pred = [fold_results[r["fold"]]["majority_baseline_class"] for r in oof_rows]
     majority_metrics = compute_metrics(y_true_all, majority_pred, labels=class_labels)
 
+    # Dois tipos de variabilidade, reportados separadamente (achado A11):
+    # dispersão entre folds (descritiva) e IC bootstrap das métricas OOF
+    # (incerteza de generalização), reamostrando grupos quando existem.
+    unit_ids = groups if groups is not None else row_ids
+    uncertainty = {
+        "between_folds": {
+            key: {
+                "mean": mean(r["metrics"][key] for r in fold_results),
+                "std": pstdev([r["metrics"][key] for r in fold_results]),
+                "min": min(r["metrics"][key] for r in fold_results),
+                "max": max(r["metrics"][key] for r in fold_results),
+            }
+            for key in METRIC_KEYS
+        },
+        "bootstrap": {
+            "unit": "group" if groups is not None else "row",
+            "reps": 1000,
+            "level": 0.95,
+            "seed": config["seed"],
+            "ci": bootstrap_ci(
+                [labels[r["row_id"]] for r in oof_rows],
+                [r["y_pred"] for r in oof_rows],
+                [unit_ids[r["row_id"]] for r in oof_rows],
+                class_labels,
+                reps=1000,
+                seed=config["seed"],
+            ),
+        },
+    }
+
     accuracies = [r["accuracy"] for r in fold_results]
     recalls = [r["recall_positive_class"] for r in fold_results if r.get("recall_positive_class") is not None]
     positive = config["positive_class"]
@@ -624,6 +654,7 @@ def run_experiment(config: dict) -> dict:
         "oof_metrics": oof_metrics,
         "oof_recall_positive_class": oof_metrics["per_class"][positive]["recall"] if positive else None,
         "majority_baseline_metrics": majority_metrics,
+        "oof_uncertainty": uncertainty,
         "total_elapsed_seconds": total_elapsed,
     }
     artifacts = {
@@ -801,6 +832,13 @@ def main(argv: list[str] | None = None) -> None:
         f"macro-F1 {oof['macro_f1']:.4f} | MCC {oof['mcc']:.4f}"
     )
     print(f"Baseline classe majoritária (OOF): acurácia {base['accuracy']:.4f} | MCC {base['mcc']:.4f}")
+    unc = summary["oof_uncertainty"]
+    ci = unc["bootstrap"]["ci"]
+    print(
+        f"Incerteza (IC 95% bootstrap por {unc['bootstrap']['unit']}): acurácia [{ci['accuracy'][0]:.4f}, {ci['accuracy'][1]:.4f}] | "
+        f"MCC [{ci['mcc'][0]:.4f}, {ci['mcc'][1]:.4f}]  ||  dispersão entre folds (desvio): "
+        f"acurácia {unc['between_folds']['accuracy']['std']:.4f} | MCC {unc['between_folds']['mcc']['std']:.4f}"
+    )
     print(
         "Regras candidatas (média): "
         f"{summary['num_candidate_rules_mean']:.1f}  |  "

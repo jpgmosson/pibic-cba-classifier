@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import math
+import random
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -80,6 +81,45 @@ def compute_metrics(y_true: Sequence[str], y_pred: Sequence[str], labels: Sequen
         "per_class": per_class,
         "confusion_matrix": {"labels": list(labels), "rows": "classe real", "columns": "classe prevista", "matrix": matrix},
     }
+
+
+METRIC_KEYS = ("accuracy", "balanced_accuracy", "macro_f1", "mcc")
+
+
+def bootstrap_ci(
+    y_true: Sequence[str],
+    y_pred: Sequence[str],
+    units: Sequence,
+    labels: Sequence[str],
+    reps: int = 1000,
+    seed: int = 0,
+    level: float = 0.95,
+) -> dict[str, list[float]]:
+    """Intervalo de confiança percentílico por bootstrap das métricas OOF.
+
+    Mede a **incerteza de generalização** (quanto a métrica agregada mudaria
+    com outra amostra de casos), distinta da *dispersão entre folds*. A
+    reamostragem é por ``units``: passe os grupos (ex.: espécie) quando
+    existirem, para não tratar como independentes linhas da mesma espécie, ou
+    os índices das linhas caso contrário.
+    """
+    members: dict = {}
+    for i, u in enumerate(units):
+        members.setdefault(u, []).append(i)
+    keys = list(members)
+    rng = random.Random(seed)
+    samples = {k: [] for k in METRIC_KEYS}
+    for _ in range(reps):
+        idx = [i for u in rng.choices(keys, k=len(keys)) for i in members[u]]
+        m = compute_metrics([y_true[i] for i in idx], [y_pred[i] for i in idx], labels=labels)
+        for k in METRIC_KEYS:
+            samples[k].append(m[k])
+    lo, hi = (1 - level) / 2, 1 - (1 - level) / 2
+    out = {}
+    for k, values in samples.items():
+        values.sort()
+        out[k] = [values[int(lo * (reps - 1))], values[int(hi * (reps - 1))]]
+    return out
 
 
 def read_oof(path: Path) -> tuple[list[str], list[str]]:

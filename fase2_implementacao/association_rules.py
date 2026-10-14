@@ -155,6 +155,13 @@ def _rows_to_transactions(df, columns: list[str]) -> list[Transaction]:
     for col in columns:
         if df[col].isna().any():
             raise ValueError(f"a coluna {col!r} contém valores ausentes (NaN/None); trate-os antes da codificação")
+    # Contrato de tipos (achado A09): uma coluna não pode misturar tipos Python
+    # (ex.: o inteiro 1 e a string "1"), pois ambos virariam o mesmo item "1".
+    for col in columns:
+        if df[col].dtype == object:
+            kinds = {type(v).__name__ for v in df[col]}
+            if len(kinds) > 1:
+                raise ValueError(f"a coluna {col!r} mistura tipos ({sorted(kinds)}); normalize-os antes da codificação")
     # Conversão coluna a coluna (e não linha a linha com iterrows): evita que o
     # pandas promova inteiros a float ao montar a linha de uma base com tipos
     # mistos, o que faria o mesmo valor virar "45" no treino e "45.0" no teste.

@@ -394,3 +394,25 @@ def test_frozen_cba_qs_variant_still_executes_through_the_runner(tmp_path):
     path, _ = make_dataset(tmp_path)
     run = run_experiment(small_config(path, cb_variant="cba_qs"))
     assert run["summary"]["cb_variant"] == "cba_qs" and run["summary"]["oof_metrics"]["n"] > 0
+
+
+def test_uncertainty_separates_between_fold_dispersion_from_bootstrap_ci(tmp_path):
+    path, df = make_dataset(tmp_path)
+    run = run_experiment(small_config(path))
+    unc = run["summary"]["oof_uncertainty"]
+    assert unc["bootstrap"]["unit"] == "group"
+    acc = run["summary"]["oof_metrics"]["accuracy"]
+    lo, hi = unc["bootstrap"]["ci"]["accuracy"]
+    assert lo <= acc <= hi and hi - lo > 0
+    assert unc["between_folds"]["accuracy"]["min"] <= unc["between_folds"]["accuracy"]["max"]
+    # reprodutível com a mesma seed
+    assert run_experiment(small_config(path))["summary"]["oof_uncertainty"] == unc
+
+
+def test_bootstrap_resamples_whole_groups():
+    from experimentos.metricas import bootstrap_ci
+
+    y = ["a", "a", "b", "b"]
+    # 2 grupos: g1 acertado, g2 errado; toda reamostra tem acurácia em {0, 0.5, 1}
+    ci = bootstrap_ci(y, ["a", "a", "a", "a"], ["g1", "g1", "g2", "g2"], ["a", "b"], reps=200, seed=1)
+    assert ci["accuracy"][0] == 0.0 and ci["accuracy"][1] == 1.0

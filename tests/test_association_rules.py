@@ -94,3 +94,11 @@ def test_mixed_int_and_float_columns_encode_identically_with_and_without_the_cla
     test = dataframe_to_feature_transactions(df, "Class")
     assert all(item in train[row] for row in range(2) for item in test[row])
     assert ("i", "45") in test[0] and ("f", "0.5") in test[0]
+
+
+def test_column_mixing_int_and_string_is_rejected():
+    df = pd.DataFrame({"A": pd.Series([1, "1"], dtype=object), "Class": ["P", "N"]})
+    with pytest.raises(ValueError, match="mistura tipos"):
+        dataframe_to_transactions(df, "Class")
+    with pytest.raises(ValueError, match="mistura tipos"):
+        dataframe_to_feature_transactions(df, "Class")

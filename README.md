@@ -35,13 +35,13 @@ semanais, às quintas-feiras.
 - [x] Construção da FP-Tree
 - [x] Conditional pattern base e conditional FP-Tree
 - [x] Mineração sem geração explícita de candidatos
-- [x] Comparação de eficiência: Apriori vs FP-Growth
+- [x] Comparação de eficiência: Apriori vs FP-Growth — medida só na mineração de itemsets (`experimentos/benchmark_mineracao.py`, mediana de 5 repetições); o FP-Growth ainda **não** está integrado ao CBA-RG
 
 ### 4. CBA (Classification Based on Associations) ✅
 - [x] CARs (Class Association Rules)
 - [x] CBA-RG (Rule Generation)
 - [x] CBA-CB (Classifier Building) — visão geral
-- [x] Poda de regras
+- [x] Poda de regras — implementado apenas o corte de prefixo de erro mínimo do M1 (Figura 2); a poda pessimista de condições do paper **não** está implementada
 - [x] Ordenação das regras
 - [x] Database coverage
 - [x] Regra padrão (default rule)

@@ -1,4 +1,6 @@
-pandas>=2.0
-numpy>=1.26
-pyyaml>=6.0
-pytest>=8.0
+# Versões exatas usadas nos experimentos da branch Baseline (Python 3.13).
+# Cada execução do runner também grava o snapshot completo em <run_id>/environment.txt.
+pandas==3.0.5
+numpy==2.5.3
+pyyaml==6.0.3
+pytest==9.1.1
