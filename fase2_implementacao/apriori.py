@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from fase2_implementacao.association_rules import Item, Itemset, Transaction, support
+from fase2_implementacao.association_rules import Item, Itemset, Transaction, min_count_for
 
 
 def apriori_frequent_itemsets(
@@ -35,6 +35,9 @@ def apriori_frequent_itemsets(
     max_length: int | None = None,
 ) -> tuple[dict[Itemset, float], dict[Itemset, int]]:
     """Minera todos os itemsets frequentes de ``transactions``.
+
+    Wrapper de ``apriori_frequent_itemset_counts`` que devolve suportes
+    relativos (``contagem / N``) em vez de contagens inteiras.
 
     Parameters
     ----------
@@ -62,52 +65,97 @@ def apriori_frequent_itemsets(
         crescente, começando em 0), na ordem em que cada itemset foi
         confirmado como frequente.
     """
+    counts, order, n = apriori_frequent_itemset_counts(transactions, min_support, max_length)
+    return {itemset: count / n for itemset, count in counts.items()}, order
+
+
+def apriori_frequent_itemset_counts(
+    transactions: Sequence[Transaction],
+    min_support: float,
+    max_length: int | None = None,
+) -> tuple[dict[Itemset, int], dict[Itemset, int], int]:
+    """Núcleo do Apriori: devolve **contagens inteiras** (``itemset -> nº de transações``).
+
+    O limiar é aplicado de forma exata: um itemset é frequente se
+    ``count >= min_support * N`` avaliado em aritmética racional (o limiar
+    decimal ``0.3`` é 3/10, não o ``float`` binário mais próximo), eliminando
+    o erro de ponto flutuante do achado A10 do Relatório 02. As contagens
+    permitem ao CBA-RG comparar confianças por razões exatas.
+
+    Returns
+    -------
+    counts, order, n:
+        Contagens por itemset, ordem de geração e o número de transações.
+    """
     if not 0.0 <= min_support <= 1.0:
         raise ValueError("min_support deve estar entre 0 e 1")
     if not transactions:
         raise ValueError("não é possível minerar itemsets frequentes sem transações")
 
-    frequent: dict[Itemset, float] = {}
+    n = len(transactions)
+    min_count = min_count_for(min_support, n)
+
+    counts: dict[Itemset, int] = {}
     order: dict[Itemset, int] = {}
     next_order = 0
 
-    # Nível 1: conta cada item individualmente.
-    item_counts: dict[Item, int] = {}
-    for transaction in transactions:
+    # Nível 1: conta cada item individualmente e monta o tidset vertical de
+    # cada item (bitmask: o bit i vale 1 se a transação i contém o item).
+    item_masks: dict[Item, int] = {}
+    for tid, transaction in enumerate(transactions):
+        bit = 1 << tid
         for item in transaction:
-            item_counts[item] = item_counts.get(item, 0) + 1
+            item_masks[item] = item_masks.get(item, 0) | bit
 
-    n = len(transactions)
+    current_masks: dict[Itemset, int] = {}
     current_level: list[Itemset] = []
-    for item in sorted(item_counts):
-        supp = item_counts[item] / n
-        if supp >= min_support:
+    for item in sorted(item_masks):
+        count = item_masks[item].bit_count()
+        if count >= min_count:
             itemset = frozenset((item,))
-            frequent[itemset] = supp
+            counts[itemset] = count
             order[itemset] = next_order
             next_order += 1
             current_level.append(itemset)
+            current_masks[itemset] = item_masks[item]
     current_level.sort(key=lambda s: sorted(s))
 
     size = 1
     while current_level and (max_length is None or size < max_length):
-        candidates = _generate_candidates(current_level, frequent)
+        candidates = _generate_candidates(current_level, counts)
         next_level: list[Itemset] = []
+        next_masks: dict[Itemset, int] = {}
         for candidate in candidates:
-            supp = support(candidate, transactions)
-            if supp >= min_support:
-                frequent[candidate] = supp
+            # Dois itens do mesmo atributo nunca coexistem numa transação (contagem
+            # 0): com min_count > 0 o candidato seria descartado de qualquer jeito,
+            # então nem precisa ser contado.
+            if min_count > 0 and _has_conflicting_items(candidate):
+                continue
+            # Contagem vertical: tidset do subconjunto (k-1) (frequente, por
+            # poda) AND tidset do item que sobrou.
+            item = next(iter(candidate))
+            mask = current_masks[candidate - {item}] & item_masks[item]
+            count = mask.bit_count()
+            if count >= min_count:
+                counts[candidate] = count
                 order[candidate] = next_order
                 next_order += 1
                 next_level.append(candidate)
-        current_level = next_level
+                next_masks[candidate] = mask
+        current_level, current_masks = next_level, next_masks
         size += 1
 
-    return frequent, order
+    return counts, order, n
+
+
+def _has_conflicting_items(itemset: Itemset) -> bool:
+    """True se ``itemset`` tem dois itens do mesmo atributo (valores diferentes)."""
+    attributes = [attribute for attribute, _ in itemset]
+    return len(set(attributes)) != len(attributes)
 
 
 def _generate_candidates(
-    previous_level: list[Itemset], frequent: dict[Itemset, float]
+    previous_level: list[Itemset], frequent: dict[Itemset, int]
 ) -> list[Itemset]:
     """Gera candidatos de tamanho k a partir dos itemsets frequentes de tamanho k-1.
 
@@ -140,7 +188,7 @@ def _generate_candidates(
     return candidates
 
 
-def _all_subsets_frequent(candidate: Itemset, frequent: dict[Itemset, float]) -> bool:
+def _all_subsets_frequent(candidate: Itemset, frequent: dict[Itemset, int]) -> bool:
     """Poda por downward closure: todo subconjunto de tamanho k-1 deve ser frequente."""
     for item in candidate:
         subset = candidate - {item}

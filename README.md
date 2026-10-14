@@ -45,7 +45,7 @@ semanais, às quintas-feiras.
 - [x] Ordenação das regras
 - [x] Database coverage
 - [x] Regra padrão (default rule)
-- [x] Algoritmo M1 — implementado em `fase2_implementacao/cba.py`, com testes unitários
+- [x] Algoritmo M1 — implementado em `fase2_implementacao/cba.py` (com o corte de erro mínimo por prefixo da Figura 2 do artigo), com testes unitários
 - [ ] Algoritmo M2 — fica para fase posterior do plano
 - [ ] QCBA (Quantitative CBA) — fica para fase posterior do plano
 

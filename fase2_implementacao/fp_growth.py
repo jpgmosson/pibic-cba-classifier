@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 
-from fase2_implementacao.association_rules import Item, Itemset, Transaction
+from fase2_implementacao.association_rules import Item, Itemset, Transaction, min_count_for
 
 
 class _FPNode:
@@ -61,21 +61,21 @@ def fp_growth_frequent_itemsets(
         raise ValueError("não é possível minerar itemsets frequentes sem transações")
 
     frequent: dict[Itemset, float] = {}
-    item_lists = [list(t) for t in transactions]
-    _mine(item_lists, frozenset(), min_support, n, frequent, max_length)
+    weighted = [(list(t), 1) for t in transactions]
+    _mine(weighted, frozenset(), min_count_for(min_support, n), n, frequent, max_length)
     return frequent
 
 
-def _count_items(transactions: list[list[Item]]) -> dict[Item, int]:
+def _count_items(transactions: list[tuple[list[Item], int]]) -> dict[Item, int]:
     counts: dict[Item, int] = defaultdict(int)
-    for transaction in transactions:
-        for item in transaction:
-            counts[item] += 1
+    for items, weight in transactions:
+        for item in items:
+            counts[item] += weight
     return counts
 
 
 def _build_tree(
-    transactions: list[list[Item]], order: dict[Item, int]
+    transactions: list[tuple[list[Item], int]], order: dict[Item, int]
 ) -> tuple[_FPNode, dict[Item, _FPNode]]:
     """Constrói a FP-Tree, inserindo em cada transação apenas os itens
     frequentes (presentes em ``order``), ordenados por frequência
@@ -84,7 +84,7 @@ def _build_tree(
     root = _FPNode(None, None)
     header: dict[Item, _FPNode] = {}
     tails: dict[Item, _FPNode] = {}
-    for transaction in transactions:
+    for transaction, weight in transactions:
         items = sorted((item for item in transaction if item in order), key=lambda item: order[item])
         node = root
         for item in items:
@@ -97,24 +97,28 @@ def _build_tree(
                 else:
                     header[item] = child
                 tails[item] = child
-            child.count += 1
+            child.count += weight
             node = child
     return root, header
 
 
 def _mine(
-    transactions: list[list[Item]],
+    transactions: list[tuple[list[Item], int]],
     prefix: frozenset[Item],
-    min_support: float,
+    min_count: int,
     n: int,
     frequent: dict[Itemset, float],
     max_length: int | None,
 ) -> None:
     """Passo recursivo: mina os itemsets frequentes que estendem ``prefix``
     dentro de ``transactions`` (a base de padrões condicionais de
-    ``prefix``, ou as transações originais quando ``prefix`` é vazio)."""
+    ``prefix``, ou as transações originais quando ``prefix`` é vazio).
+
+    Cada elemento é um par ``(caminho, peso)``: o caminho condicional de um
+    nó entra **uma vez** com peso ``node.count``, em vez de ser replicado
+    ``node.count`` vezes (mesmas contagens, bem menos memória/iterações)."""
     counts = _count_items(transactions)
-    frequent_items = {item: count for item, count in counts.items() if count / n >= min_support}
+    frequent_items = {item: count for item, count in counts.items() if count >= min_count}
     if not frequent_items:
         return
 
@@ -136,7 +140,7 @@ def _mine(
         if max_length is not None and len(new_itemset) >= max_length:
             continue
 
-        conditional_transactions: list[list[Item]] = []
+        conditional_transactions: list[tuple[list[Item], int]] = []
         node = header[item]
         while node is not None:
             path: list[Item] = []
@@ -144,9 +148,9 @@ def _mine(
             while ancestor is not None and ancestor.item is not None:
                 path.append(ancestor.item)
                 ancestor = ancestor.parent
-            for _ in range(node.count):
-                conditional_transactions.append(path)
+            if path:
+                conditional_transactions.append((path, node.count))
             node = node.node_link
 
         if conditional_transactions:
-            _mine(conditional_transactions, new_itemset, min_support, n, frequent, max_length)
+            _mine(conditional_transactions, new_itemset, min_count, n, frequent, max_length)

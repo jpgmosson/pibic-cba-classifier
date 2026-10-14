@@ -62,3 +62,35 @@ def test_lift_of_independent_attributes_is_one(cores_formas_transactions):
     # (2 em 4), igual à proporção geral de Label=A (4/8) -> lift == 1.
     value = lift({("Shape", "Circle")}, {("Label", "A")}, cores_formas_transactions)
     assert value == pytest.approx(1.0)
+
+
+# ------------------------------------------------------------ inferência sem alvo / ausências ---
+
+import pandas as pd  # noqa: E402
+
+from fase2_implementacao.association_rules import dataframe_to_feature_transactions, dataframe_to_transactions  # noqa: E402
+
+
+def test_feature_transactions_exclude_the_class_column():
+    df = pd.DataFrame({"A": ["x", "y"], "Class": ["P", "N"]})
+    assert dataframe_to_feature_transactions(df, "Class") == [frozenset({("A", "x")}), frozenset({("A", "y")})]
+    assert dataframe_to_feature_transactions(df[["A"]]) == [frozenset({("A", "x")}), frozenset({("A", "y")})]
+    assert frozenset({("Class", "P"), ("A", "x")}) == dataframe_to_transactions(df, "Class")[0]
+
+
+def test_missing_values_are_rejected_instead_of_becoming_the_string_nan():
+    df = pd.DataFrame({"A": ["x", None], "Class": ["P", "N"]})
+    with pytest.raises(ValueError, match="ausentes"):
+        dataframe_to_transactions(df, "Class")
+    with pytest.raises(ValueError, match="ausentes"):
+        dataframe_to_feature_transactions(df, "Class")
+
+
+def test_mixed_int_and_float_columns_encode_identically_with_and_without_the_class_column():
+    # Antes da correção: treino (com a coluna de classe, dtype object) gerava "45" e
+    # o teste (só preditores, int+float promovidos a float) gerava "45.0".
+    df = pd.DataFrame({"i": [45, 60], "f": [0.5, 1.5], "Class": ["P", "N"]})
+    train = dataframe_to_transactions(df, "Class")
+    test = dataframe_to_feature_transactions(df, "Class")
+    assert all(item in train[row] for row in range(2) for item in test[row])
+    assert ("i", "45") in test[0] and ("f", "0.5") in test[0]

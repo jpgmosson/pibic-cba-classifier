@@ -50,6 +50,11 @@ When asked to implement or fix the classifier itself, work in `fase2_implementac
 `fase1_exploracao/`. It is fine to read `fase1_exploracao/` for reference on how pyARC approached a
 problem, but the `fase2_implementacao/` code must remain an independent implementation, not a copy.
 
+Branch `Baseline` corrects the classic CBA per the supervisor's technical review (`docs/Relatório 02 - Codigo CBA.docx`,
+findings A01–A12): M1 minimum-error prefix cut, one consequent per antecedent, exact-fraction precedence,
+discretizer contracts (NaN rejected, degenerate cuts), group-aware CV (`group_column`), OOF predictions and
+auditable run artifacts (`experimentos/auditoria.py`). CBA-QS (`cba_qs.py`) is frozen there and not validated.
+
 Fase 1 (classic CBA baseline) is implemented and tested — see `tests/` for unit tests against a
 hand-verifiable artificial dataset, and `experimentos/` for the reproducible experiment runner used
 on the Iris dataset. The full 5-phase progression plan (baseline → controlled discretization/

@@ -10,8 +10,15 @@
 
 dataset_path: datasets/Pokemon.csv
 csv_sep: ";"
-id_column: "#"
+# "Name" identifica a linha nas predições OOF. "#" é o identificador da espécie
+# e agrupa as formas "Mega" da mesma espécie: com group_column as dobras são
+# construídas por espécie (nenhuma espécie em treino e teste ao mesmo tempo,
+# achado A05 do Relatório 02). "#" nunca é usado como preditor.
+# Para a divisão por linha (ablação): --split row.
+id_column: Name
+group_column: "#"
 class_column: Legendary
+# Normalizado como string (true/"True" equivalentes) e verificado contra as classes do dataset.
 positive_class: "True"
 
 # Apenas os 6 stats numéricos contínuos como preditores — ignora Name,

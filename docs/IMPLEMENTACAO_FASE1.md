@@ -136,14 +136,21 @@ frequentes = fp_growth_frequent_itemsets(transactions, min_support=0.25)
 **O que faz:** as duas etapas centrais do CBA.
 
 - **CBA-RG** (`generate_cars`): usa o Apriori para minerar itemsets e filtra apenas os que têm
-  exatamente um item de classe, virando regras `antecedente ⇒ classe` (CARs), filtradas por
-  suporte e confiança mínimos.
+  exatamente um item de classe, virando regras `antecedente ⇒ classe`. **Para cada antecedente
+  mantém um único consequente** — o de maior confiança (empate: ordem alfabética do rótulo, em
+  vez do sorteio do artigo) — e só o aceita se atingir a confiança mínima. Contagens são
+  inteiras e os limiares/precedência usam frações exatas (sem comparação por `float`).
 - **Ordenação** (`sort_cars_by_precedence`): ordena as CARs por confiança, depois suporte,
   depois ordem de geração — o critério clássico de Liu, Hsu & Ma (1998). É passada como
   parâmetro para o CBA-CB de propósito, para no futuro trocar só esse critério (CBA-QS) sem
   reescrever o resto.
-- **CBA-CB, variante M1** (`build_classifier_m1`): cobre o conjunto de treino sequencialmente
-  com as regras ordenadas e monta o classificador final (lista de decisão + classe padrão).
+- **CBA-CB, variante M1** (`build_classifier_m1`, Figura 2 do artigo): cobre o conjunto de
+  treino sequencialmente com as regras ordenadas e, a cada regra aceita, registra os erros
+  acumulados das regras + os erros da classe padrão (maioria dos casos residuais). **Ao final
+  trunca a lista no primeiro prefixo de menor erro total** e usa a classe padrão desse prefixo.
+  O histórico por prefixo fica em `Classifier.m1_history`. Desvios documentados (desempate
+  determinístico, fallback quando tudo é coberto, prefixo vazio fora do corte) estão no
+  docstring de `cba.py`. Não há poda pessimista de condições.
 
 **Como rodar/usar:**
 
@@ -186,9 +193,24 @@ com validação cruzada estratificada:
 5. Registra: semente, tamanho de treino/teste, tempo de execução, nº de regras candidatas e
    finais, comprimento médio do antecedente, acurácia por fold e versões das dependências.
 
-Salva um JSON detalhado por execução em `experimentos/resultados/<dataset>_<timestamp>.json`
-(não versionado) e acrescenta uma linha de resumo em
-`experimentos/resultados/resumo.csv` (esse sim versionado no git).
+Se o YAML define `group_column` (Pokémon: `"#"`, a espécie), as dobras são construídas **por
+grupo** (nenhuma espécie em treino e teste ao mesmo tempo); `--split row` volta à divisão por
+linha, para comparação. Na inferência a classe verdadeira nunca entra na transação.
+
+Cada execução grava, sem sobrescrever, um diretório `experimentos/resultados/<run_id>/`
+(não versionado) com `summary.json`, `config.json` (commit, hash do dataset), `environment.txt`,
+`partitions.json`, `discretization.json`, `rules.json`, `m1_history.json`,
+`oof_predictions.csv` e `metrics.json`, e acrescenta uma linha a
+`experimentos/resultados/resumo.csv` (versionado; o cabeçalho de arquivos antigos é migrado).
+Métricas: acurácia, acurácia balanceada, macro-F1, MCC, matriz de confusão e baseline da
+classe majoritária. Para auditar uma execução só pelos artefatos:
+
+```powershell
+python -m experimentos.auditoria verify  --run experimentos/resultados/<run_id>
+python -m experimentos.auditoria history --run <dir> --fold 0
+python -m experimentos.auditoria trace   --run <dir> --row <row_id>
+python -m experimentos.metricas --oof <dir>/oof_predictions.csv
+```
 
 **Como rodar (Iris):**
 

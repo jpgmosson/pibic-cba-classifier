@@ -19,15 +19,19 @@ ordem de geração asc):
                   Apriori -- ambas têm confiança e suporte idênticos)
   3º) A=y => N   (confiança .667)
 
-Cobertura M1:
-  A=z=>N cobre as 2 linhas com A=z (ambas rotuladas N) -> regra selecionada.
-  A=x=>P cobre as 3 linhas com A=x (2 P, 1 N) -> classifica corretamente ao
-    menos uma (as 2 P) -> regra selecionada, as 3 linhas (inclusive a N)
-    saem da rodada.
-  A=y=>N cobre as 3 linhas com A=y (2 N, 1 P) -> mesma lógica -> selecionada.
-  As 2 linhas com A=w nunca são cobertas por nenhuma regra (não existe CAR
-    para A=w) -> ficam para a classe padrão: 1 P e 1 N, empate resolvido
-    alfabeticamente -> N.
+Cobertura M1 (as 3 regras são selecionadas por cobertura) e histórico de erro
+por prefixo (Figura 2 de Liu, Hsu & Ma, 1998):
+
+  prefixo 1 = [z=>N]           erros das regras 0; residual = x(2P,1N)+y(2N,1P)
+                               +w(1P,1N) = 4P/4N -> padrão N (empate, alfabético),
+                               4 erros              -> total 4
+  prefixo 2 = [z=>N, x=>P]     erros das regras 1; residual = y(2N,1P)+w(1P,1N)
+                               = 3N/2P -> padrão N, 2 erros -> total 3
+  prefixo 3 = [.., y=>N]       erros das regras 2; residual = w(1P,1N)
+                               -> padrão N, 1 erro  -> total 3
+
+O primeiro mínimo é o prefixo 2 (empata com o 3, que é descartado): o
+classificador final é [z=>N, x=>P] com padrão N.
 """
 
 from __future__ import annotations
@@ -93,13 +97,15 @@ def test_build_classifier_m1_end_to_end(cba_transactions, cba_labels):
     cars = generate_cars(cba_transactions, class_attribute="Class", min_support=0.2, min_confidence=0.5)
     classifier = build_classifier_m1(cars, cba_transactions, cba_labels, class_attribute="Class")
 
+    # Corte de erro mínimo do M1: A=y=>N (prefixo 3, erro total 3) empata com o
+    # prefixo 2 e é descartado -- o primeiro mínimo vence.
     assert [(r.antecedent, r.class_label) for r in classifier.rules] == [
         (frozenset({("A", "z")}), "N"),
         (frozenset({("A", "x")}), "P"),
-        (frozenset({("A", "y")}), "N"),
     ]
-    # As duas linhas com A=w nunca são cobertas -> 1 P e 1 N -> empate -> "N".
     assert classifier.default_class == "N"
+    assert [rec.total_errors for rec in classifier.m1_history] == [4, 3, 3]
+    assert classifier.chosen_prefix_length == 2
 
 
 def test_classifier_predict_uses_first_matching_rule_then_default(cba_transactions):

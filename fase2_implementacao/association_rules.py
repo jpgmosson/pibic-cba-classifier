@@ -20,12 +20,35 @@ transação satisfaz um itemset.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Sequence
+from fractions import Fraction
 from typing import Any
 
 Item = tuple[str, Any]
 Itemset = frozenset[Item]
 Transaction = frozenset[Item]
+
+
+def to_fraction(value: float, name: str = "valor") -> Fraction:
+    """Converte um limiar decimal de configuração (ex.: ``0.05``) em ``Fraction`` exata.
+
+    A semântica adotada é a *decimal*: ``0.05`` significa 5/100, e não o
+    ``float`` binário mais próximo. Isso permite comparar contagens inteiras
+    com o limiar sem erro de ponto flutuante (ex.: ``3/10 >= 0.3`` é sempre
+    verdadeiro). Rejeita booleanos, NaN e infinitos.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float, Fraction)):
+        raise ValueError(f"{name} deve ser numérico, recebido: {value!r}")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{name} deve ser finito, recebido: {value!r}")
+    return Fraction(str(value)) if isinstance(value, float) else Fraction(value)
+
+
+def min_count_for(min_support: float, n: int) -> int:
+    """Menor contagem inteira ``c`` com ``c / n >= min_support`` (limiar decimal exato)."""
+    threshold = to_fraction(min_support, "min_support")
+    return -((-threshold.numerator * n) // threshold.denominator)
 
 
 def _as_itemset(itemset: Iterable[Item]) -> Itemset:
@@ -112,7 +135,28 @@ def dataframe_to_transactions(df, class_column: str) -> list[Transaction]:
     columns = list(df.columns)
     if class_column not in columns:
         raise ValueError(f"coluna de classe {class_column!r} não encontrada no DataFrame")
-    transactions: list[Transaction] = []
-    for _, row in df.iterrows():
-        transactions.append(frozenset((col, str(row[col])) for col in columns))
-    return transactions
+    return _rows_to_transactions(df, columns)
+
+
+def dataframe_to_feature_transactions(df, class_column: str | None = None) -> list[Transaction]:
+    """Codifica apenas os preditores de ``df`` (sem a coluna de classe).
+
+    Usada na **inferência**: a classe verdadeira nunca entra na transação
+    que o classificador enxerga (achados A04/A11 do Relatório 02), de modo
+    que remover ou permutar os rótulos de teste não altera as predições.
+    Se ``class_column`` for informada e existir em ``df``, ela é ignorada.
+    """
+    columns = [c for c in df.columns if c != class_column]
+    return _rows_to_transactions(df, columns)
+
+
+def _rows_to_transactions(df, columns: list[str]) -> list[Transaction]:
+    # Ausência nunca vira a categoria textual "nan" (achado A09): é rejeitada.
+    for col in columns:
+        if df[col].isna().any():
+            raise ValueError(f"a coluna {col!r} contém valores ausentes (NaN/None); trate-os antes da codificação")
+    # Conversão coluna a coluna (e não linha a linha com iterrows): evita que o
+    # pandas promova inteiros a float ao montar a linha de uma base com tipos
+    # mistos, o que faria o mesmo valor virar "45" no treino e "45.0" no teste.
+    values_by_column = {col: df[col].astype(str).tolist() for col in columns}
+    return [frozenset((col, values_by_column[col][i]) for col in columns) for i in range(len(df))]
