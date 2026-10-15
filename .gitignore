@@ -18,3 +18,10 @@ datasets/database.sqlite
 experimentos/resultados/*
 !experimentos/resultados/.gitkeep
 !experimentos/resultados/resumo.csv
+
+# LaTeX
+*.aux
+*.log
+*.toc
+*.out
+*.synctex.gz

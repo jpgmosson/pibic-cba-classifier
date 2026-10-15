@@ -1,0 +1,31 @@
+# Iris nas condições do experimento do artigo do CBA (Liu, Hsu e Ma, 1998), Tabela 1:
+#   minconf 50%, minsup 1%, discretização por entropia de Fayyad e Irani (MDL), validação cruzada
+#   em 10 dobras, sem limite no comprimento do antecedente.
+# Valores publicados para comparação (linha "iris", coluna "CBA (CARs)"): erro 7,1% (com e sem poda),
+# 72 CARs sem poda / 23 com poda (prCARs), 5 regras no classificador.
+# Para a versão com poda pessimista: --prune (ou prune: true).
+#
+#   python -m experimentos.runner --config experimentos/configs/iris_paper.yaml
+#   python -m experimentos.runner --config experimentos/configs/iris_paper.yaml --prune
+
+dataset_path: datasets/iris.csv
+id_column: Id
+class_column: Species
+continuous_columns:
+  - SepalLengthCm
+  - SepalWidthCm
+  - PetalLengthCm
+  - PetalWidthCm
+
+discretizar: true
+discretization_method: mdl   # supervisionada: cortes aprendidos só no treino de cada dobra (n_bins não é usado)
+
+min_support: 0.01
+min_confidence: 0.5
+max_antecedent_length: null  # sem limite, como no artigo (o Iris só tem 4 atributos)
+
+prune: false                 # poda pessimista de condições (opcional no artigo)
+prune_cf: 0.25               # nível de confiança do erro pessimista (padrão do C4.5; escolha nossa)
+
+k_folds: 10
+seed: 42

@@ -74,6 +74,7 @@ from fase2_implementacao.cba import build_classifier_m1, generate_cars, majority
 from fase2_implementacao.cba_qs import DEFAULT_WEIGHTS as CBA_QS_DEFAULT_WEIGHTS
 from fase2_implementacao.cba_qs import build_classifier_cba_qs
 from fase2_implementacao.discretization import EqualFrequencyDiscretizer
+from fase2_implementacao.discretization_mdl import MDLDiscretizer
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / "experimentos" / "resultados"
@@ -103,6 +104,8 @@ SUMMARY_COLUMNS = [
     "oof_mcc",
     "oof_recall_positive_class",
     "majority_baseline_accuracy",
+    "discretization_method",
+    "prune",
 ]
 
 
@@ -126,7 +129,6 @@ def load_config(config_path: Path) -> dict:
         "dataset_path",
         "class_column",
         "continuous_columns",
-        "n_bins",
         "min_support",
         "min_confidence",
         "k_folds",
@@ -136,6 +138,10 @@ def load_config(config_path: Path) -> dict:
     if missing:
         raise ValueError(f"config incompleto, faltando: {sorted(missing)}")
     config.setdefault("discretizar", True)
+    config.setdefault("discretization_method", "quantile")  # "quantile" (baseline) ou "mdl" (Fayyad e Irani, como no artigo)
+    config.setdefault("n_bins", 3)  # só usado por "quantile"
+    config.setdefault("prune", False)  # poda pessimista de condições (opcional no artigo)
+    config.setdefault("prune_cf", 0.25)
     config.setdefault("csv_sep", ",")
     config.setdefault("feature_columns", None)
     config.setdefault("positive_class", None)
@@ -152,7 +158,13 @@ def validate_config(config: dict) -> dict:
 
     ``positive_class`` passa pelo mesmo contrato do alvo (``str``): o ``true``
     do YAML vira ``"True"``, igual ao rótulo ``"True"`` de uma coluna booleana.
+    As chaves opcionais da discretização supervisionada e da poda recebem o padrão
+    (baseline: quantis, sem poda) quando ausentes, para que configurações antigas sigam válidas.
     """
+    config.setdefault("discretization_method", "quantile")
+    config.setdefault("n_bins", 3)
+    config.setdefault("prune", False)
+    config.setdefault("prune_cf", 0.25)
     if config["cb_variant"] not in ("m1", "cba_qs"):
         raise ValueError(f"cb_variant deve ser 'm1' ou 'cba_qs', recebido: {config['cb_variant']!r}")
     if not _is_real(config["min_support"]) or not 0 < config["min_support"] <= 1:
@@ -170,6 +182,12 @@ def validate_config(config: dict) -> dict:
         raise ValueError(f"seed deve ser inteiro, recebido: {config['seed']!r}")
     if not isinstance(config["discretizar"], bool):
         raise ValueError(f"discretizar deve ser booleano, recebido: {config['discretizar']!r}")
+    if config["discretization_method"] not in ("quantile", "mdl"):
+        raise ValueError(f"discretization_method deve ser 'quantile' ou 'mdl', recebido: {config['discretization_method']!r}")
+    if not isinstance(config["prune"], bool):
+        raise ValueError(f"prune deve ser booleano, recebido: {config['prune']!r}")
+    if not _is_real(config["prune_cf"]) or not 0 < config["prune_cf"] < 1:
+        raise ValueError(f"prune_cf deve estar em (0, 1), recebido: {config['prune_cf']!r}")
     if not isinstance(config["class_column"], str) or not config["class_column"]:
         raise ValueError("class_column deve ser o nome de uma coluna")
 
@@ -369,8 +387,13 @@ def run_fold(train_df: pd.DataFrame, test_df: pd.DataFrame, config: dict) -> dic
 
     discretization = None
     if config["discretizar"]:
-        discretizer = EqualFrequencyDiscretizer(n_bins=config["n_bins"], columns=config["continuous_columns"])
-        train_encoded = discretizer.fit_transform(train_df)
+        if config["discretization_method"] == "mdl":
+            # supervisionada: cortes aprendidos com X e y do TREINO; a transformação não usa o alvo
+            discretizer = MDLDiscretizer(columns=config["continuous_columns"])
+            train_encoded = discretizer.fit_transform(train_df, train_df[class_column].astype(str))
+        else:
+            discretizer = EqualFrequencyDiscretizer(n_bins=config["n_bins"], columns=config["continuous_columns"])
+            train_encoded = discretizer.fit_transform(train_df)
         test_encoded = discretizer.transform(test_df[feature_columns])
         discretization = discretizer.describe(train_df)
     else:
@@ -390,6 +413,8 @@ def run_fold(train_df: pd.DataFrame, test_df: pd.DataFrame, config: dict) -> dic
         min_support=config["min_support"],
         min_confidence=config["min_confidence"],
         max_antecedent_length=config["max_antecedent_length"],
+        prune=config["prune"],
+        prune_cf=config["prune_cf"],
     )
     t_rg = time.perf_counter()
 
@@ -638,6 +663,8 @@ def run_experiment(config: dict) -> dict:
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "discretizar": config["discretizar"],
+        "discretization_method": config["discretization_method"],
+        "prune": config["prune"],
         "cb_variant": config["cb_variant"],
         "split": split,
         "config": config,
@@ -674,7 +701,9 @@ def run_experiment(config: dict) -> dict:
 
 def _new_run_dir(dataset_name: str, summary: dict) -> tuple[str, Path]:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    disc = "discretizado" if summary["discretizar"] else "sem_discretizacao"
+    disc = "sem_discretizacao" if not summary["discretizar"] else ("mdl" if summary["discretization_method"] == "mdl" else "discretizado")
+    if summary["prune"]:
+        disc += "_poda"
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     run_id = f"{dataset_name}_{disc}_{summary['split']}_{summary['cb_variant']}_{stamp}_{uuid.uuid4().hex[:6]}"
     run_dir = RESULTS_DIR / run_id
@@ -774,6 +803,8 @@ def write_results(run: dict, dataset_name: str) -> Path:
         "oof_mcc": fmt(oof["mcc"]),
         "oof_recall_positive_class": fmt(summary["oof_recall_positive_class"]) if positive else "",
         "majority_baseline_accuracy": fmt(summary["majority_baseline_metrics"]["accuracy"]),
+        "discretization_method": summary["discretization_method"],
+        "prune": summary["prune"],
     }
     with open(summary_path, "a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=SUMMARY_COLUMNS)
@@ -797,6 +828,16 @@ def main(argv: list[str] | None = None) -> None:
         help="Pula a etapa de discretização, sobrescrevendo 'discretizar' do config para false.",
     )
     parser.add_argument(
+        "--discretization",
+        choices=["quantile", "mdl"],
+        help="Sobrescreve 'discretization_method': 'quantile' (baseline) ou 'mdl' (entropia/MDL de Fayyad e Irani, como no artigo).",
+    )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="Liga a poda pessimista de condições (opcional no artigo; ver cba.prune_cars_pessimistic).",
+    )
+    parser.add_argument(
         "--cb-variant",
         choices=["m1", "cba_qs"],
         help="Sobrescreve 'cb_variant' do config: 'm1' (CBA-CB clássico) ou 'cba_qs' (congelado nesta baseline).",
@@ -811,6 +852,10 @@ def main(argv: list[str] | None = None) -> None:
     config = load_config(args.config)
     if args.sem_discretizar:
         config["discretizar"] = False
+    if args.discretization:
+        config["discretization_method"] = args.discretization
+    if args.prune:
+        config["prune"] = True
     if args.cb_variant:
         config["cb_variant"] = args.cb_variant
     if args.split:
@@ -823,7 +868,10 @@ def main(argv: list[str] | None = None) -> None:
 
     oof, base = summary["oof_metrics"], summary["majority_baseline_metrics"]
     print(f"Dataset: {dataset_name}  |  run_id: {summary['run_id']}")
-    print(f"Discretização: {'sim' if summary['discretizar'] else 'não'}  |  Divisão: {summary['split']}")
+    print(
+        f"Discretização: {summary['discretization_method'] if summary['discretizar'] else 'não'}  |  "
+        f"Poda pessimista: {'sim' if summary['prune'] else 'não'}  |  Divisão: {summary['split']}"
+    )
     print(f"Variante CBA-CB: {summary['cb_variant']}")
     print(f"Seed: {config['seed']}  |  k_folds: {config['k_folds']}")
     print(f"Acurácia média por dobra: {summary['accuracy_mean']:.4f} (desvio padrão: {summary['accuracy_std']:.4f})")
@@ -857,7 +905,12 @@ def main(argv: list[str] | None = None) -> None:
         )
     print(f"Matriz de confusão OOF {oof['confusion_matrix']['labels']}: {oof['confusion_matrix']['matrix']}")
     print(f"Tempo total: {summary['total_elapsed_seconds']:.3f}s")
-    print(f"Detalhes salvos em: {detail_path.parent.relative_to(REPO_ROOT)}")
+    shown = detail_path.parent
+    try:
+        shown = shown.relative_to(REPO_ROOT)
+    except ValueError:  # diretório de resultados fora do repositório
+        pass
+    print(f"Detalhes salvos em: {shown}")
 
 
 if __name__ == "__main__":

@@ -416,3 +416,89 @@ def test_bootstrap_resamples_whole_groups():
     # 2 grupos: g1 acertado, g2 errado; toda reamostra tem acurácia em {0, 0.5, 1}
     ci = bootstrap_ci(y, ["a", "a", "a", "a"], ["g1", "g1", "g2", "g2"], ["a", "b"], reps=200, seed=1)
     assert ci["accuracy"][0] == 0.0 and ci["accuracy"][1] == 1.0
+
+
+# ------------------------------------------- discretização MDL e poda pessimista no pipeline ---
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"discretization_method": "outro"},
+        {"prune": "sim"},
+        {"prune": 1},
+        {"prune_cf": 0},
+        {"prune_cf": 1},
+        {"prune_cf": float("nan")},
+        {"prune_cf": True},
+    ],
+)
+def test_validate_config_rejects_invalid_mdl_and_prune_options(overrides):
+    with pytest.raises(ValueError):
+        cfg(**overrides)
+
+
+def test_new_options_default_to_the_baseline_behaviour():
+    c = cfg()
+    assert c["discretization_method"] == "quantile" and c["prune"] is False and c["prune_cf"] == 0.25
+
+
+def test_n_bins_is_optional_when_not_using_quantiles():
+    config = {k: v for k, v in BASE_CONFIG.items() if k != "n_bins"}
+    assert validate_config(config)["n_bins"] == 3
+
+
+def test_pipeline_runs_with_mdl_and_with_pruning(tmp_path):
+    path, df = make_dataset(tmp_path)
+    run = run_experiment(small_config(path, discretization_method="mdl"))
+    assert run["summary"]["discretization_method"] == "mdl" and run["summary"]["prune"] is False
+    disc = run["artifacts"]["discretization"][0]
+    assert disc["a"]["method"].startswith("entropy-mdl") and disc["a"]["n_effective_bins"] >= 2  # 'a' separa as classes
+    assert sorted(r["row_id"] for r in run["artifacts"]["oof"]) == list(range(len(df)))
+    pruned = run_experiment(small_config(path, prune=True))
+    plain = run_experiment(small_config(path))
+    assert pruned["summary"]["prune"] is True
+    assert pruned["summary"]["num_candidate_rules_mean"] <= plain["summary"]["num_candidate_rules_mean"]
+
+
+def test_mdl_cuts_use_only_training_labels_and_test_labels_never_matter(tmp_path):
+    path, df = make_dataset(tmp_path)
+    config = small_config(path, discretization_method="mdl")
+    cut = 2 * len(df) // 3
+    train = df.iloc[:cut][["a", "color", "y"]].reset_index(drop=True)
+    test = df.iloc[cut:][["a", "color", "y"]].reset_index(drop=True)
+    flipped = test.assign(y=test["y"].map({"pos": "neg", "neg": "pos"}))
+    base = run_fold(train, test, config)
+    other = run_fold(train, flipped, config)
+    assert other["_predictions"] == base["_predictions"]
+    assert other["_discretization"] == base["_discretization"]  # cortes iguais: o teste não entra no fit
+
+
+def test_runs_are_not_mixed_up_in_the_summary_csv(tmp_path, results_dir):
+    path, _ = make_dataset(tmp_path)
+    run = run_experiment(small_config(path, discretization_method="mdl", prune=True))
+    write_results(run, "data")
+    with open(results_dir / "resumo.csv", encoding="utf-8", newline="") as f:
+        row = next(csv.DictReader(f))
+    assert row["discretization_method"] == "mdl" and row["prune"] == "True"
+    assert "mdl_poda" in row["run_id"]
+
+
+def test_iris_paper_config_reproduces_the_order_of_magnitude_of_the_published_cba(results_dir):
+    """Regressão do experimento de fidelidade: Iris nas condições do artigo (publicado: erro 7,1%,
+    72 CARs / 23 prCARs, 5 regras). Faixas largas, só para detectar regressões grosseiras."""
+    config = load_config(runner.REPO_ROOT / "experimentos" / "configs" / "iris_paper.yaml")
+    assert config["discretization_method"] == "mdl" and config["k_folds"] == 10 and config["max_antecedent_length"] is None
+    plain = run_experiment(config)["summary"]
+    pruned = run_experiment({**config, "prune": True})["summary"]
+    assert 0.03 <= 1 - plain["oof_metrics"]["accuracy"] <= 0.10
+    assert 3 <= plain["num_final_rules_mean"] <= 7
+    assert 60 <= plain["num_candidate_rules_mean"] <= 130
+    assert pruned["num_candidate_rules_mean"] < 0.5 * plain["num_candidate_rules_mean"]  # a poda corta a maioria das CARs
+
+
+def test_command_line_flags_select_mdl_and_pruning(results_dir):
+    runner.main(["--config", str(runner.REPO_ROOT / "experimentos" / "configs" / "iris.yaml"), "--discretization", "mdl", "--prune"])
+    with open(results_dir / "resumo.csv", encoding="utf-8", newline="") as f:
+        row = next(csv.DictReader(f))
+    assert row["discretization_method"] == "mdl" and row["prune"] == "True" and "mdl_poda" in row["run_id"]

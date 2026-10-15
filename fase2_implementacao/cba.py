@@ -46,6 +46,7 @@ from typing import Any
 
 from fase2_implementacao.apriori import apriori_frequent_itemset_counts
 from fase2_implementacao.association_rules import Item, Itemset, Transaction, to_fraction
+from fase2_implementacao.pruning import DEFAULT_CF, pessimistic_error_rate
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,8 @@ def generate_cars(
     min_support: float,
     min_confidence: float,
     max_antecedent_length: int | None = None,
+    prune: bool = False,
+    prune_cf: float = DEFAULT_CF,
 ) -> list[Rule]:
     """CBA-RG: gera as CARs válidas a partir das transações de treino.
 
@@ -119,6 +122,12 @@ def generate_cars(
         Limite opcional no número de condições do antecedente (equivale a
         um limite de ``max_antecedent_length + 1`` no tamanho do itemset
         minerado, já que o item de classe ocupa uma posição).
+    prune:
+        Se verdadeiro, aplica a poda pessimista de condições do artigo
+        (``pruneRules``, ver ``prune_cars_pessimistic``) às CARs geradas. Padrão
+        falso: sem poda (as ``CARs`` do artigo, não as ``prCARs``).
+    prune_cf:
+        Nível de confiança da taxa de erro pessimista (padrão 0,25, do C4.5).
     """
     min_sup = to_fraction(min_support, "min_support")
     min_conf = to_fraction(min_confidence, "min_confidence")
@@ -126,6 +135,8 @@ def generate_cars(
         raise ValueError(f"min_support deve estar em (0, 1], recebido: {min_support!r}")
     if not 0 <= min_conf <= 1:
         raise ValueError(f"min_confidence deve estar em [0, 1], recebido: {min_confidence!r}")
+    if prune:
+        pessimistic_error_rate(0, 1, prune_cf)  # valida prune_cf (0 < cf < 1) antes de minerar
     if max_antecedent_length is not None and (
         isinstance(max_antecedent_length, bool)
         or not isinstance(max_antecedent_length, int)
@@ -166,7 +177,55 @@ def generate_cars(
             )
         )
     cars.sort(key=lambda r: r.generation_order)
+    if prune:
+        cars = prune_cars_pessimistic(cars, counts, n, prune_cf)
     return cars
+
+
+def prune_cars_pessimistic(
+    cars: Sequence[Rule],
+    counts: dict[Itemset, int],
+    n: int,
+    cf: float = DEFAULT_CF,
+) -> list[Rule]:
+    """Poda pessimista de condições (``pruneRules`` do CBA-RG, Liu, Hsu e Ma, 1998).
+
+    Uma regra ``r`` é podada se sua taxa de erro pessimista for **estritamente
+    maior** que a de alguma regra ``r-`` obtida apagando UMA condição de ``r``
+    (mesmo consequente). A taxa vem de ``pessimistic_error_rate(erros, casos)``,
+    com ``casos`` = nº de transações que satisfazem o antecedente e ``erros`` =
+    casos dentre eles de outra classe. Decisões de interpretação (o artigo não
+    as especifica):
+
+    * ``r-`` é qualquer regra com uma condição a menos; se ``r`` tem uma única
+      condição, ``r-`` é a regra de antecedente vazio (prevê a classe com a
+      prevalência do treino, ``casos`` = N).
+    * Basta UMA ``r-`` melhor para podar ``r``; empates não podam.
+    * A comparação usa as contagens de todos os itemsets frequentes, mesmo de
+      regras que não passaram em ``min_confidence`` (``r-`` pode ter confiança
+      baixa); por downward closure, as contagens necessárias existem.
+
+    A ordem relativa das CARs sobreviventes é preservada.
+    """
+    kept: list[Rule] = []
+    for rule in cars:
+        errors = rule.antecedent_count - rule.joint_count
+        rate = pessimistic_error_rate(errors, rule.antecedent_count, cf)
+        pruned = False
+        for condition in rule.antecedent:
+            shorter = rule.antecedent - {condition}
+            if shorter:
+                shorter_n = counts[shorter]
+                shorter_joint = counts[shorter | {rule.consequent}]
+            else:
+                shorter_n = n
+                shorter_joint = counts[frozenset({rule.consequent})]
+            if rate > pessimistic_error_rate(shorter_n - shorter_joint, shorter_n, cf):
+                pruned = True
+                break
+        if not pruned:
+            kept.append(rule)
+    return kept
 
 
 def sort_cars_by_precedence(cars: Sequence[Rule]) -> list[Rule]:

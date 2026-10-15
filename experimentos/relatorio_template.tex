@@ -1,0 +1,642 @@
+% Relatório técnico completo da baseline do CBA clássico.
+% Arquivo único e autocontido (tabelas embutidas). Compilar com pdflatex duas vezes, ou colar no Overleaf.
+% Gerado por: python -m experimentos.gerar_relatorio --com-antigo
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazilian]{babel}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parskip}{0.4em}
+\setlist{itemsep=0.1em,topsep=0.3em}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\Aid}[1]{\textbf{#1}}
+% evita linhas estouradas por trechos de código/nomes de arquivo sem ponto de quebra
+\emergencystretch=3em
+\sloppy
+
+\title{Baseline do CBA Cl\'assico: Corre\c{c}\~oes, Valida\c{c}\~ao e Resultados\\ nos Datasets Iris e Pok\'emon}
+\author{Jo\~ao Mosson\\[0.3em]\small Projeto PIBIC --- Classifica\c{c}\~ao Baseada em Regras de Associa\c{c}\~ao}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Este relat\'orio documenta, de ponta a ponta, a corre\c{c}\~ao e a valida\c{c}\~ao da implementa\c{c}\~ao pr\'opria do algoritmo CBA (\emph{Classification Based on Associations}, Liu, Hsu e Ma, 1998) --- etapas CBA-RG e CBA-CB, variante M1 --- feita a partir da revis\~ao t\'ecnica do orientador (Relat\'orio~02, achados A01--A12). Descreve cada problema encontrado, a corre\c{c}\~ao aplicada, os testes de aceite, o protocolo experimental e os resultados regenerados nos datasets Iris e Pok\'emon (com e sem discretiza\c{c}\~ao; divis\~ao por linha e por esp\'ecie), incluindo baseline de classe majorit\'aria, intervalos de confian\c{c}a, variabilidade entre seeds, compara\c{c}\~ao com o c\'odigo anterior, rastreamento de predi\c{c}\~oes e histórico de erro do M1. O trabalho foi feito na branch \code{Baseline}; o CBA-QS n\~ao faz parte deste escopo. Na baseline corrigida, o Iris discretizado atinge 95,33\% de acur\'acia (seed 42) e o Pok\'emon discretizado 94,13\% (por esp\'ecie) com recall de 61,54\% da classe minorit\'aria, contra 1,54\% do c\'odigo anterior; sem discretiza\c{c}\~ao, o Pok\'emon continua indistingu\'ivel da classe majorit\'aria. A baseline tamb\'em foi confrontada com o pyARC em 90 dobras (minera\c{c}\~ao, regra poss\'ivel e M1 coincidem) e, nas condi\c{c}\~oes do artigo (discretiza\c{c}\~ao por entropia, minsup de 1\%, sem limite de antecedente), o Iris dá erro de 6,53\% contra 7,1\% publicado, com 4,7 regras no classificador contra 5.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Introdu\c{c}\~ao}
+%=====================================================================
+
+Este projeto de Inicia\c{c}\~ao Cient\'ifica (PIBIC) implementa, do zero, um classificador baseado em regras de associa\c{c}\~ao inspirado no CBA e, futuramente, uma extens\~ao pr\'opria (CBA-QS). Antes de qualquer extens\~ao \'e necess\'ario ter uma \emph{baseline} do CBA cl\'assico confi\'avel: qualquer comparação posterior só tem valor se o ponto de refer\^encia for fiel ao algoritmo original e se as m\'etricas forem auditáveis.
+
+O orientador revisou o c\'odigo existente (Relat\'orio~02, 08/10/2026) e identificou 12 achados (A01--A12): 1 cr\'itico, 6 de alta prioridade e 5 de m\'edia prioridade, com uma ordem de execução sugerida em 5 est\'agios e crit\'erios de aceite para considerar a baseline validada. Este relat\'orio registra como cada achado foi tratado e quais resultados a baseline corrigida produz.
+
+\subsection{Objetivos}
+\begin{enumerate}
+  \item Fazer o CBA cl\'assico (CBA-RG + CBA-CB M1) funcionar como descrito no artigo original, sem incorporar nada do CBA-QS.
+  \item Corrigir os achados A01--A12 na ordem do relat\'orio do orientador e atualizar a suite de testes.
+  \item Regenerar os experimentos em Iris e Pok\'emon e demonstrar os crit\'erios de aceite: explicar uma predi\c{c}\~ao do registro original at\'e a classe, mostrar o corte escolhido pelo M1 e reproduzir as m\'etricas a partir das predi\c{c}\~oes fora da dobra salvas.
+\end{enumerate}
+
+\subsection{Escopo e autoria}
+O c\'odigo avaliado est\'a em \code{fase2_implementacao/} (implementa\c{c}\~ao pr\'opria). O diret\'orio \code{fase1_exploracao/} cont\'em c\'odigo adaptado do \emph{pyARC} (Filip e Kliegr), usado apenas para estudo e n\~ao faz parte da contribui\c{c}\~ao; nada dele \'e usado aqui. O m\'odulo \code{cba_qs.py}, criado antes desta tarefa, foi mantido \textbf{congelado}: n\~ao foi editado nem validado (ver Se\c{c}\~ao~\ref{sec:cbaqs}).
+
+%=====================================================================
+\section{Fundamenta\c{c}\~ao: o algoritmo CBA}
+%=====================================================================
+
+\subsection{Defini\c{c}\~oes}
+Uma \emph{transa\c{c}\~ao} \'e um conjunto de \emph{itens} $(\text{atributo},\text{valor})$; o r\'otulo de classe \'e tratado como um item. Seja $D$ a base de treino com $N$ casos. Para um itemset $X$:
+\begin{align*}
+\operatorname{cnt}(X) &= |\{d\in D : X\subseteq d\}|, &
+\operatorname{sup}(X) &= \operatorname{cnt}(X)/N,\\
+\operatorname{conf}(X\Rightarrow y) &= \frac{\operatorname{cnt}(X\cup\{y\})}{\operatorname{cnt}(X)}, &
+\operatorname{lift}(X\Rightarrow y) &= \frac{\operatorname{conf}(X\Rightarrow y)}{\operatorname{sup}(y)}.
+\end{align*}
+Uma \emph{CAR} (\emph{Class Association Rule}) \'e uma regra $X\Rightarrow y$ em que $y$ \'e um r\'otulo de classe e $X$ um conjunto n\~ao vazio de condi\c{c}\~oes. Os limiares \code{min_support} e \code{min_confidence} filtram as regras.
+
+\subsection{CBA-RG}
+O CBA-RG gera os \emph{ruleitems} frequentes (aqui, via Apriori). No artigo, \textbf{para todos os ruleitems com o mesmo antecedente (\emph{condset}) escolhe-se apenas o de maior confiança} --- a regra poss\'ivel (PR) --- e, em empate, sorteia-se um. A PR s\'o vira CAR se sua confiança atingir \code{min_confidence}.
+
+\subsection{Preced\^encia}
+Uma regra $r_1$ precede $r_2$ se (1) $\operatorname{conf}(r_1)>\operatorname{conf}(r_2)$; ou (2) confian\c{c}as iguais e $\operatorname{sup}(r_1)>\operatorname{sup}(r_2)$; ou (3) ambas iguais e $r_1$ foi gerada antes.
+
+\subsection{CBA-CB, variante M1 (Figura~2 do artigo)}
+\begin{enumerate}[label=\arabic*.]
+  \item Ordene as CARs $R$ por preced\^encia.
+  \item Para cada regra $r\in R$ em sequ\^encia, marque os casos ainda n\~ao cobertos que satisfazem o antecedente de $r$.
+  \item Se $r$ classifica corretamente ao menos um desses casos, insira $r$ ao fim da lista $C$, remova \emph{todos} os casos marcados (corretos ou n\~ao), escolha a classe padr\~ao corrente (maioria dos casos restantes) e calcule o n\'umero total de erros de $C$ com essa classe padr\~ao.
+  \item Ao final, encontre a \textbf{primeira} regra $p$ em $C$ com o menor n\'umero total de erros, descarte as regras depois de $p$ e adicione ao fim a classe padr\~ao associada a $p$.
+\end{enumerate}
+O passo 4 \'e o \emph{corte de erro m\'inimo por prefixo}: era exatamente o que faltava no c\'odigo (achado A01). N\~ao confundir com a \emph{poda pessimista de condi\c{c}\~oes} (opcional no artigo, n\~ao implementada).
+
+\subsection{Infer\^encia}
+A lista de decis\~ao \'e aplicada na ordem: a primeira regra cujo antecedente \'e satisfeito decide a classe; se nenhuma satisfaz, aplica-se a classe padr\~ao.
+
+%=====================================================================
+\section{Revis\~ao t\'ecnica do orientador e estado de cada achado}
+%=====================================================================
+
+O Relat\'orio~02 tamb\'em listou componentes j\'a corretos, que foram preservados: f\'ormulas de suporte/confian\c{c}a/lift, representa\c{c}\~ao transacional, Apriori e FP-Growth (concordaram com enumera\c{c}\~ao exaustiva em 100 casos), ajuste dos quantis s\'o no treino de cada dobra, antecedentes sem item de classe, cobertura sequencial e lista de decis\~ao.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Achados do Relat\'orio~02 e como foram tratados. Prioridade: C = cr\'itica, A = alta, M = m\'edia.}
+\label{tab:achados}
+\begin{tabular}{llp{5.2cm}p{5.6cm}}
+\toprule
+ID & Prio. & Achado & Tratamento nesta branch \\
+\midrule
+A01 & C & M1 sem corte no prefixo de menor erro & Corte implementado, com hist\'orico de erro por prefixo \\
+A02 & A & V\'arios consequentes por antecedente & Um vencedor por antecedente (desempate determin\'istico) \\
+A03 & A & NaN contamina quantis & NaN/$\pm\infty$ rejeitados com erro claro \\
+A04 & A & Proposta de discretização por classe & N\~ao implementada; documentada como vazamento; infer\^encia sem alvo \\
+A05 & A & Mesma esp\'ecie em treino e teste & Dobras por grupo (\code{group_column}) \\
+A06 & A & Folds vazios / estratifica\c{c}\~ao fraca & Ponteiro cont\'inuo, valida\c{c}\~oes de $k$ \\
+A07 & M & Quantis repetidos, faixas vazias & Cortes reposicionados entre valores distintos; constante = 1 bin \\
+A08 & M & Base categ\'orica falha ap\'os \emph{fit} & \code{is_fitted_} independente de \code{edges_} \\
+A09 & M & Tipos/par\^ametros sem contrato & Valida\c{c}\~ao de config; \code{positive_class} normalizada; tipos mistos rejeitados \\
+A10 & M & Ponto flutuante altera empates & Contagens inteiras e \code{Fraction} \\
+A11 & A & M\'etricas e decis\~oes pouco rastre\'aveis & M\'etricas ampliadas, OOF, regras, cortes, hist\'orico, auditoria \\
+A12 & M & Custos evit\'aveis e registro fr\'agil & Otimiza\c{c}\~oes (Apriori, FP-Growth) e registro robusto \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%=====================================================================
+\section{Implementa\c{c}\~ao das corre\c{c}\~oes}
+%=====================================================================
+
+A ordem seguiu os est\'agios do relat\'orio. Para cada achado: problema, corre\c{c}\~ao, onde est\'a no c\'odigo e como foi verificado. Todos os caminhos s\~ao relativos \`a raiz do reposit\'orio.
+
+\subsection{Arquitetura}
+\begin{itemize}
+  \item \code{fase2_implementacao/association_rules.py}: suporte, confian\c{c}a, lift; codifica\c{c}\~ao transacional; \code{to_fraction} e \code{min_count_for} (limiares exatos).
+  \item \code{fase2_implementacao/discretization.py}: discretizador por igual-frequ\^encia.
+  \item \code{fase2_implementacao/apriori.py}, \code{fp_growth.py}: minera\c{c}\~ao de itemsets.
+  \item \code{fase2_implementacao/cba.py}: CBA-RG (\code{generate_cars}), preced\^encia, CBA-CB M1 (\code{build_classifier_m1}), \code{Classifier}.
+  \item \code{experimentos/runner.py}: pipeline com valida\c{c}\~ao cruzada; \code{metricas.py}; \code{auditoria.py}; \code{benchmark_mineracao.py}; \code{gerar_relatorio.py}.
+\end{itemize}
+
+%---------------------------------------------------------------------
+\subsection{Est\'agio 1 --- N\'ucleo algor\'itmico}
+%---------------------------------------------------------------------
+
+\subsubsection{A01 --- Corte de erro m\'inimo por prefixo no M1 (cr\'itico)}
+\textbf{Problema.} \code{build_classifier_m1} mantinha todas as regras selecionadas por cobertura e escolhia a classe padr\~ao s\'o no final; faltavam o erro por prefixo e o corte. O pr\'oprio docstring admitia a simplifica\c{c}\~ao.
+
+\textbf{Corre\c{c}\~ao.} A cobertura sequencial foi mantida. Ap\'os cada regra aceita registra-se um \code{PrefixRecord} com: erros acumulados das regras (cada caso contado uma só vez, na regra que o cobre), n\'umero de casos residuais, classe padr\~ao (maioria residual), erros dessa classe padr\~ao e erro total. Ao final retorna-se o \textbf{primeiro} prefixo de erro total m\'inimo (compara\c{c}\~ao estrita \code{<}), as regras seguintes s\~ao descartadas e usa-se a classe padr\~ao \emph{daquele} prefixo. O hist\'orico completo fica em \code{Classifier.m1_history} e o tamanho escolhido em \code{chosen_prefix_length}. Tamb\'em foi adicionado \code{predict_with_rule}, que devolve a classe e o \'indice da regra acionada na mesma passagem.
+
+\textbf{Exemplo do relat\'orio (verificado por teste).} Quatro casos $(A{=}x,B{=}z,P)$, dois $(A{=}y,B{=}z,N)$ e um $(A{=}y,B{=}z,P)$; regras ordenadas $A{=}x\Rightarrow P$ e $B{=}z\Rightarrow P$.
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+Estado ap\'os a sele\c{c}\~ao & Erros das regras & Erros do padr\~ao & Erro total\\
+\midrule
+Regra 1, padr\~ao $N$ & 0 & 1 & \textbf{1}\\
+Regras 1 e 2, padr\~ao $P$ & 2 & 0 & 2\\
+\bottomrule
+\end{tabular}
+\end{center}
+O c\'odigo antigo retornava as duas regras com padr\~ao $P$ (2 erros); o correto \'e uma regra, padr\~ao $N$, 1 erro.
+
+\textbf{Casos de borda decididos (documentados no docstring de \code{cba.py}).} (i) Treino vazio \'e rejeitado. (ii) Sem nenhuma CAR selecionada, o classificador \'e a classe majorit\'aria do treino. (iii) Se todos os casos forem cobertos, n\~ao h\'a residual para estimar o padr\~ao; usa-se a majorit\'aria de todo o treino (erros do padr\~ao = 0). (iv) Empates entre prefixos conservam o mais curto. (v) O prefixo vazio n\~ao concorre ao corte (fiel \`a Figura~2: s\'o prefixos com ao menos uma regra).
+
+\textbf{Verifica\c{c}\~ao.} Testes para o exemplo acima, empate entre prefixos, mudança de padr\~ao entre o prefixo escolhido e o \'ultimo, aus\^encia de CARs, cobertura total e treino vazio; e dois testes que comparam os erros registrados em \emph{cada} prefixo com uma avalia\c{c}\~ao expl\'icita da lista de decis\~ao no treino (um no dataset artificial, outro em 80 casos aleat\'orios).
+
+\subsubsection{A02 --- Um consequente por antecedente no CBA-RG}
+\textbf{Problema.} \code{generate_cars} devolvia, para cada antecedente, todas as classes que passavam os limiares. No Pok\'emon discretizado havia 0, 1, 0, 2 e 0 antecedentes com m\'ultiplos consequentes por dobra.
+
+\textbf{Corre\c{c}\~ao.} Os ruleitems s\~ao agrupados por antecedente; vence o de maior contagem conjunta (equivalente a maior confiança, pois o antecedente \'e o mesmo). O empate \'e resolvido \textbf{deterministicamente} por ordem alfab\'etica do r\'otulo (decis\~ao tomada com o autor; o artigo sorteia). A CAR s\'o existe se a confiança do vencedor atingir \code{min_confidence}. A ordem de gera\c{c}\~ao do vencedor \'e preservada e a lista sai ordenada por ela.
+
+\textbf{Verifica\c{c}\~ao.} Quatro casos $A{=}x$ (dois $P$, dois $N$) geram exatamente uma regra; com três classes e \code{min_confidence} abaixo de 0,5 vence a de maior confiança; vencedor abaixo do limiar n\~ao gera regra; antecedentes \'unicos e resultado determin\'istico.
+
+\subsubsection{A10 --- Compara\c{c}\~ao exata de confian\c{c}a}
+\textbf{Problema.} Com $N=10$, $(2/10)/(6/10)=0{,}33333333333333337$ e $(3/10)/(9/10)=0{,}3333333333333333$, embora ambas valham $1/3$; o desempate por suporte podia ser perdido.
+
+\textbf{Corre\c{c}\~ao.} A minera\c{c}\~ao passou a devolver \textbf{contagens inteiras} (\code{apriori_frequent_itemset_counts}); \code{Rule} guarda \code{joint_count}, \code{antecedent_count} e \code{n_transactions}, e \code{support}/\code{confidence} (\code{float}) s\~ao derivados. A preced\^encia ordena por \code{Fraction}: confian\c{c}a decrescente, suporte decrescente, ordem de gera\c{c}\~ao crescente. Os limiares s\~ao avaliados em aritm\'etica racional com sem\^antica decimal: \code{to_fraction(0.05)} \'e $5/100$ (\code{Fraction(str(x))}) e \code{min_count_for} calcula $\lceil \text{minsup}\cdot N\rceil$ sem ponto flutuante. Para Iris ($N=120$ por dobra, \code{min_support}=0,05) isso d\'a contagem m\'inima 6; para Pok\'emon ($N=640$, 0,03) d\'a 20.
+
+\textbf{Verifica\c{c}\~ao.} Regras $2/6$ e $3/9$ empatam em confian\c{c}a e a de suporte $3/10$ vence; testes de fronteira exata de \code{min_confidence} e \code{min_support} (igual, imediatamente acima e abaixo); valida\c{c}\~ao de par\^ametros inv\'alidos.
+
+%---------------------------------------------------------------------
+\subsection{Est\'agio 2 --- Contratos de pr\'e-processamento}
+%---------------------------------------------------------------------
+
+\subsubsection{A03 --- Valores ausentes}
+\textbf{Problema.} \code{np.quantile} propaga NaN para os cortes e \code{searchsorted} envia NaN para bins comuns; em teste, um NaN cairia no \'ultimo bin, confundido com valor alto.
+
+\textbf{Corre\c{c}\~ao (pol\'itica escolhida: rejeitar).} \code{fit} e \code{transform} levantam \code{ValueError} nomeando a coluna se houver NaN ou $\pm\infty$; portanto nenhum corte cont\'em NaN. \'E a alternativa simples aceita pelo relat\'orio para a baseline (a categoria reservada ``ausente'' fica como extens\~ao). Na codifica\c{c}\~ao transacional, NaN tamb\'em \'e rejeitado, para nunca virar o item textual ``nan''. Nenhum dataset atual tem ausentes nas colunas usadas.
+
+\subsubsection{A07 --- Cortes repetidos e fronteiras}
+\textbf{Problema.} Com oito zeros e dois uns e três bins, o corte coincide com o m\'inimo e todos os casos viram \code{bin1}; para $[5,5,5]$ um novo valor menor cai num bin vazio. O coment\'ario sobre fronteiras contradizia \code{side="right"}.
+
+\textbf{Corre\c{c}\~ao.} Cada corte de quantil \'e reposicionado para um v\~ao entre valores \emph{distintos} observados (contagem de valores distintos estritamente menores que o corte); cortes que caem no mesmo v\~ao s\~ao colapsados; um corte menor ou igual ao m\'inimo \'e movido para o primeiro v\~ao. Resultado: valores iguais ficam sempre juntos, coluna constante tem um bin, todo bin efetivo tem exemplos no treino e o n\'umero efetivo de faixas fica em \code{n_effective_bins_}. A conven\c{c}\~ao agora est\'a documentada corretamente: $\code{bin}_i=[e_{i-1},e_i)$; valor igual a um corte vai para a faixa superior. O caso $0/1$ preserva a distin\c{c}\~ao em dois bins efetivos.
+
+\subsubsection{A08 --- Base somente categ\'orica}
+\code{is_fitted_} passou a ser um sinalizador pr\'oprio, independente de \code{edges_}; com \code{columns=[]}, \code{fit} seguido de \code{transform} devolve uma c\'opia equivalente, e \code{transform} antes do \code{fit} continua levantando erro. O pipeline completo roda numa base categ\'orica com \code{discretizar=True} (testado).
+
+\subsubsection{A09 --- Contratos de configura\c{c}\~ao e tipos}
+\code{load_config}/\code{validate_config} verificam, antes de qualquer treino: \code{min_support} num\'erico finito em $(0,1]$; \code{min_confidence} finito em $[0,1]$; \code{n_bins} inteiro $\geq 2$ (n\~ao booleano); \code{max_antecedent_length} nulo ou inteiro $\geq 1$; \code{k_folds} inteiro $\geq 2$; alvo fora de \code{feature_columns} e de \code{continuous_columns}; sem duplicatas; \code{id_column} e \code{group_column} nunca como preditores. \code{positive_class} passa pelo mesmo contrato do alvo (\code{str}): o \code{true} do YAML vira \code{"True"}, igual ao r\'otulo da coluna booleana, eliminando o recall indefinido; sua exist\^encia no dataset \'e verificada. Uma coluna que mistura tipos Python (por exemplo o inteiro 1 e a string ``1'') \'e rejeitada na codifica\c{c}\~ao. As mesmas valida\c{c}\~oes de limiares existem em \code{generate_cars}, usado sem o runner.
+
+%---------------------------------------------------------------------
+\subsection{Est\'agio 3 --- Infer\^encia sem vazamento e protocolo de valida\c{c}\~ao}
+%---------------------------------------------------------------------
+
+\subsubsection{A04 --- Discretiza\c{c}\~ao por classe \'e vazamento}
+A proposta do \'ultimo par\'agrafo de \code{docs/relatorio_pokemon.tex} (discretizar cada caso com cortes escolhidos pela sua classe verdadeira) \textbf{n\~ao foi implementada}. Ela exigiria conhecer o alvo antes de prever (vazamento direto) e o mesmo r\'otulo \code{bin2} passaria a significar intervalos diferentes em classes diferentes. Isto est\'a registrado no docstring de \code{discretization.py}. Uma discretiza\c{c}\~ao supervisionada leg\'itima aprende cortes globais com $X$ e $y$ do treino e os congela.
+
+A transforma\c{c}\~ao implementada \'e \'unica por atributo, aprendida s\'o no treino de cada dobra e independente do alvo. Al\'em disso, na infer\^encia as transa\c{c}\~oes de teste s\~ao montadas \textbf{apenas com os preditores} (\code{dataframe_to_feature_transactions}); antes, a classe verdadeira estava dentro da transa\c{c}\~ao de teste (sem influenciar a predi\c{c}\~ao, pois nenhum antecedente cont\'em item de classe, mas contrariando o contrato). Um teste permuta e inverte os r\'otulos de teste e verifica que as predi\c{c}\~oes s\~ao id\^enticas.
+
+\subsubsection{A05 --- Mesma esp\'ecie em treino e teste}
+\textbf{Problema.} O identificador \texttt{\#} era removido antes do particionamento; no Pok\'emon, 800 linhas t\^em 721 identificadores distintos e 144 linhas pertencem a identificadores repetidos (65 esp\'ecies com mais de uma linha, formas ``Mega'' etc.). Na divis\~ao por linha, 20, 20, 28, 25 e 33 esp\'ecies aparecem simultaneamente em treino e teste nos cinco folds (reproduzido neste trabalho, Tabela~\ref{tab:folds_linha}).
+
+\textbf{Corre\c{c}\~ao.} Nova op\c{c}\~ao \code{group_column} (no Pok\'emon, \texttt{"\#"}), mantida como metadado e exclu\'ida dos preditores. \code{stratified_group_kfold_indices} constr\'oi dobras por grupo: guloso, grupos maiores primeiro (empates embaralhados pela seed); cada grupo vai para a dobra cujo desvio quadr\'atico em rela\c{c}\~ao \`a contagem-alvo por classe ($\text{total da classe}/k$) menos cresce, desempatando por tamanho e \'indice. Rejeita $k$ maior que o n\'umero de grupos e dobras vazias. O runner confere que cada linha aparece exatamente uma vez nos testes e registra, por dobra, contagem de grupos, de classes e grupos compartilhados. A op\c{c}\~ao \code{--split row} mant\'em a divis\~ao por linha para compara\c{c}\~ao. O padr\~ao do Pok\'emon \'e agora por esp\'ecie (decis\~ao tomada com o autor); para prever \emph{novas formas de esp\'ecies conhecidas}, a divis\~ao por linha seria pertinente, mas precisa ser expl\'icita. N\~ao se deduplicou nada automaticamente (h\'a 35 linhas pertencentes a grupos de atributos+alvo duplicados, 21 excedentes, o que n\~ao prova erro nos registros).
+
+\subsubsection{A06 --- Estratifica\c{c}\~ao}
+\textbf{Problema.} A distribui\c{c}\~ao de cada classe reiniciava na dobra 0; os restos se acumulavam nas primeiras dobras. Para r\'otulos $[A,B,C]$ e $k=3$, os tamanhos eram $[3,0,0]$.
+
+\textbf{Corre\c{c}\~ao.} Um ponteiro de dobra \'e mantido entre classes (o resto de uma classe continua de onde a anterior parou), de modo que classe e tamanho total ficam equilibrados com diferen\c{c}a de no m\'aximo 1. \code{k} deve ser inteiro, $2\le k\le N$ e $k\le$ tamanho da menor classe; caso contr\'ario, erro claro (o caso $[A,B,C]$, $k=3$ \'e rejeitado). Para Iris e Pok\'emon (classes divis\'iveis por 5) as dobras por linha coincidem com as anteriores, o que permite compara\c{c}\~ao direta. Classes ausentes no teste de uma dobra (poss\'ivel s\'o na divis\~ao por grupos) s\~ao registradas em \code{partitions.json}.
+
+%---------------------------------------------------------------------
+\subsection{Est\'agio 4 --- Auditabilidade e reprodutibilidade}
+%---------------------------------------------------------------------
+
+\subsubsection{A11 --- M\'etricas e rastreabilidade}
+\textbf{M\'etricas} (\code{experimentos/metricas.py}, sem scikit-learn): acur\'acia, \textbf{acur\'acia balanceada} (m\'edia do recall das classes presentes), \textbf{macro-F1}, \textbf{MCC} multiclasse (Gorodkin; zero quando o denominador \'e nulo), precis\~ao/recall/F1 por classe e matriz de confus\~ao, sempre sobre as predi\c{c}\~oes agregadas fora da dobra (OOF), al\'em do baseline de classe majorit\'aria (treino de cada dobra). Cobertura, acur\'acia e discrimina\c{c}\~ao s\~ao reportadas separadamente (uso da classe padr\~ao, acur\'acia, recall).
+
+\textbf{Dispers\~ao versus incerteza.} O desvio entre dobras \'e descritivo; a incerteza de generaliza\c{c}\~ao \'e estimada por intervalo de confian\c{c}a percent\'ilico de 95\% por \emph{bootstrap} (1000 reamostragens, seed da configura\c{c}\~ao), reamostrando \textbf{esp\'ecies inteiras} quando h\'a grupos e linhas caso contr\'ario.
+
+\textbf{Artefatos por execu\c{c}\~ao.} Ver Se\c{c}\~ao~\ref{sec:artefatos}.
+
+\subsubsection{A12 --- Registro e ambiente}
+\begin{itemize}
+  \item \textbf{Bug de desempenho}: \code{set(test_idx)} era reconstru\'ido por linha; agora \'e constru\'ido uma vez por dobra.
+  \item \textbf{Sobrescrita}: o JSON usava timestamp s\'o at\'e o segundo. Cada execu\c{c}\~ao recebe um \code{run_id} \'unico (dataset, discretiza\c{c}\~ao, divis\~ao, variante, data/hora com microssegundos e sufixo aleat\'orio) e o diret\'orio \'e criado em modo exclusivo; arquivos s\~ao abertos com modo \code{x}.
+  \item \textbf{Cabe\c{c}alho do CSV}: \code{resumo.csv} ganha colunas novas \emph{ao final}; se o cabe\c{c}alho for um prefixo do atual, o arquivo \'e migrado preenchendo vazios (linhas antigas, inclusive as mais curtas, n\~ao se deslocam); cabe\c{c}alho incompat\'ivel \'e recusado.
+  \item \textbf{Ambiente}: \code{environment.txt} (equivalente a \code{pip freeze}, via \code{importlib.metadata}), commit, ramo, estado sujo do \'arvore, hash SHA-256 do dataset e \code{requirements.txt} com vers\~oes exatas.
+  \item \textbf{Tempos} separados: pr\'e-processamento, gera\c{c}\~ao de regras, constru\c{c}\~ao do classificador e infer\^encia.
+  \item \textbf{Cobertura de regras}: classe e regra acionada obtidas na mesma infer\^encia.
+\end{itemize}
+
+%---------------------------------------------------------------------
+\subsection{Est\'agio 5 --- Otimiza\c{c}\~oes de desempenho}
+%---------------------------------------------------------------------
+Feitas somente depois de congelar e validar o resto, e sem alterar resultados:
+\begin{itemize}
+  \item \textbf{Apriori}: contagem \emph{vertical} (cada item guarda um \emph{tidset} em bitmask; o suporte de um candidato \'e o \code{popcount} do tidset do subconjunto $(k{-}1)$ \code{AND} o do item restante) e descarte, antes da contagem, de candidatos com dois itens do mesmo atributo (contagem necessariamente zero). A ordem de gera\c{c}\~ao \'e id\^entica.
+  \item \textbf{FP-Growth}: a base condicional guarda cada caminho uma vez, com peso \code{node.count}, em vez de replic\'a-lo \code{node.count} vezes. O limiar tamb\'em passou a ser exato (\code{min_count_for}).
+\end{itemize}
+A equival\^encia \'e testada contra c\'opias congeladas das implementa\c{c}\~oes anteriores (\code{tests/_reference}) e contra enumera\c{c}\~ao exaustiva, em 40 bases aleat\'orias por configura\c{c}\~ao (201 casos). O \textbf{FP-Growth n\~ao est\'a integrado ao CBA-RG}: o relat\'orio pede antes uma pol\'itica de preced\^encia que controle a ordem de gera\c{c}\~ao.
+
+Benchmark controlado (\code{experimentos/benchmark_mineracao.py}; mediana de 5 repeti\c{c}\~oes alternadas, mesmas transa\c{c}\~oes e \code{min_support}; Python 3.13.15, Windows 11; resultados id\^enticos verificados antes de cronometrar):
+\begin{center}\small
+\begin{tabular}{llrrr}
+\toprule
+Algoritmo & Base (minsup, comprimento m\'ax.) & Antes (ms) & Depois (ms) & Ganho \\
+\midrule
+Apriori & Pok\'emon discretizado ($N{=}800$; 0,03; 4) & 56,9 & 4,8 & $11{,}8\times$ \\
+FP-Growth & Pok\'emon discretizado & 33,0 & 11,1 & $3{,}0\times$ \\
+Apriori & Pok\'emon bruto & 70,5 & 5,7 & $12{,}3\times$ \\
+FP-Growth & Pok\'emon bruto & 5,0 & 4,4 & $1{,}1\times$ \\
+Apriori & Iris discretizado ($N{=}150$; 0,05; 4) & 1,7 & 0,6 & $2{,}7\times$ \\
+FP-Growth & Iris discretizado & 2,1 & 0,9 & $2{,}4\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Os tempos s\~ao de uma m\'aquina e de uma configura\c{c}\~ao; n\~ao s\~ao prova geral de efici\^encia. A sa\'ida bruta est\'a em \code{benchmark_mineracao.txt}.
+
+\subsection{Corre\c{c}\~ao adicional descoberta durante o trabalho}
+Ao codificar transa\c{c}\~oes com \code{iterrows}, o pandas promove inteiros a \code{float} quando a linha tem tipos mistos. O treino (linha com a coluna de classe, tipo \code{object}) gerava o item \code{"45"} e o teste (s\'o preditores, int e float promovidos) gerava \code{"45.0"}: as regras nunca casariam. A convers\~ao passou a ser coluna a coluna. N\~ao afetava Iris nem Pok\'emon (colunas homog\^eneas), mas afetaria bases mistas sem discretiza\c{c}\~ao; h\'a teste de regress\~ao.
+
+\subsection{Extensões opcionais para se aproximar do artigo}\label{sec:extensoes}
+Duas peças do CBA original ausentes da baseline foram adicionadas como \textbf{opções desligadas por padrão}: a baseline por quantis e todos os resultados anteriores permanecem exatamente os mesmos (nenhum padrão mudou; as chaves novas têm valor padrão em \code{validate_config}).
+
+\paragraph{Discretização por entropia com critério MDL (\code{discretization_mdl.py}).} É o método usado nos experimentos do artigo (Fayyad e Irani, 1993). Por atributo, ordenam-se os exemplos e avalia-se cada ponto médio entre valores \emph{distintos} consecutivos; escolhe-se o corte $T$ que minimiza a entropia ponderada $E(T;S)=\tfrac{|S_1|}{N}\mathrm{Ent}(S_1)+\tfrac{|S_2|}{N}\mathrm{Ent}(S_2)$ (empates: o menor corte) e o aceita somente se
+\[
+\mathrm{Gain}(T;S)=\mathrm{Ent}(S)-E(T;S)\;>\;\frac{\log_2(N-1)+\Delta(T;S)}{N},\qquad
+\Delta=\log_2(3^k-2)-\big[k\,\mathrm{Ent}(S)-k_1\mathrm{Ent}(S_1)-k_2\mathrm{Ent}(S_2)\big],
+\]
+com $k,k_1,k_2$ o número de classes em $S,S_1,S_2$. Aceito o corte, repete-se em $S_1$ e $S_2$. O número de faixas é determinado pelos dados; um atributo sem corte aceito vira uma faixa só. Os cortes são aprendidos com $X$ e $y$ \textbf{do treino} de cada dobra e congelados; a transformação não usa o alvo, que é a forma legítima de discretização supervisionada do achado A04 (testado: trocar os rótulos de teste não altera cortes nem predições). A convenção de fronteira e a rejeição de NaN são as do discretizador por quantis.
+
+\emph{Verificação.} (i) Valores calculados à mão (por exemplo, $x=1..6$ com classes \texttt{aaabbb}: corte 3,5, ganho 1 contra limiar 0,5215; classes alternadas \texttt{abab}: rejeitado); (ii) concordância com uma implementação ingênua em Python puro, escrita direto das fórmulas, em 60 conjuntos aleatórios (29 com pelo menos um corte); (iii) no Iris completo os cortes são 5,55 e 6,15 (comprimento da sépala), 2,95 e 3,35 (largura da sépala), 2,45 e 4,75 (comprimento da pétala) e 0,8 e 1,75 (largura da pétala), que coincidem com os valores clássicos desse dataset (saída conhecida do discretizador MDL do Weka, \emph{lembrada de memória e não confrontada com o Weka neste trabalho}); (iv) as mesmas contas em \code{tests/test_discretization_mdl.py}.
+
+\paragraph{Poda pessimista de condições (\code{pruning.py}, \code{cba.prune_cars_pessimistic}).} É a função \code{pruneRules} do CBA-RG: uma regra $r$ é podada se sua taxa de erro pessimista for maior que a de uma regra $r^-$ obtida apagando uma condição de $r$ (método do C4.5, Quinlan). O artigo \textbf{não especifica} a fórmula nem o nível de confiança; as escolhas desta implementação, todas documentadas no código, são: (i) a taxa pessimista de uma regra que cobre $n$ casos e erra $e$ é o limite superior exato (Clopper--Pearson) da probabilidade de erro, isto é, o $p$ tal que $P(\mathrm{Bin}(n,p)\le e)=\mathrm{cf}$, com $\mathrm{cf}=0{,}25$ (padrão do C4.5), calculado por bisecção (o C4.5 usa uma aproximação numérica do mesmo limite); para $e=0$ vale $1-\mathrm{cf}^{1/n}$; (ii) basta \emph{uma} $r^-$ estritamente melhor para podar $r$ (empate não poda); (iii) para regras de uma única condição, $r^-$ é a regra de antecedente vazio (a prevalência da classe); (iv) as contagens de $r^-$ vêm de todos os itemsets frequentes, mesmo de regras abaixo de \code{min_confidence}. Ativa-se com \code{prune: true}. Como a poda só retira regras do conjunto de CARs, a ordem das sobreviventes é preservada.
+
+\emph{Verificação.} Os limites binomiais são conferidos com coeficientes binomiais exatos ($P(\mathrm{Bin}(n,p)\le e)=\mathrm{cf}$ para vários $(e,n,\mathrm{cf})$) e a forma fechada para $e=0$; cenários calculados à mão (por exemplo, \texttt{A=x,B=u => P} com 0 erros em 5 casos, taxa 0,2421, é podada frente a \texttt{A=x => P} com 0 erros em 20, taxa 0,0670) e casos em que a regra longa é melhor e permanece.
+
+\subsection{Desvios deliberados em rela\c{c}\~ao ao artigo}
+\begin{enumerate}
+  \item Desempate entre consequentes de mesma confiança: determin\'istico (alfab\'etico) em vez de sorteio.
+  \item Cobertura total do treino: classe padr\~ao = majorit\'aria de todo o treino.
+  \item Prefixo vazio n\~ao concorre ao corte (Figura~2).
+  \item Discretização por igual-frequência na baseline, em vez da entropia de Fayyad e Irani usada no artigo; a entropia/MDL está disponível como opção (Seção~\ref{sec:extensoes}) e foi usada na Seção~\ref{sec:fidelidade}. O estudo controlado de discretização continua sendo a Fase~2 do plano.
+  \item Poda pessimista de condições desligada por padrão (opção \code{prune}); sem M2. A fórmula do erro pessimista e o nível de confiança são escolhas nossas, pois o artigo não as especifica.
+\end{enumerate}
+
+%=====================================================================
+\section{Metodologia experimental}
+%=====================================================================
+
+\subsection{Datasets}
+\textbf{Iris} (Fisher, 1936): 150 amostras, três classes balanceadas (50 cada), quatro atributos cont\'inuos (comprimento e largura de s\'epala e p\'etala, em cm), sem ausentes; \code{Id} n\~ao \'e preditor.
+
+\textbf{Pok\'emon with stats} (Kaggle): 800 linhas e 13 colunas originais. Preditores: os seis atributos num\'ericos \code{HP}, \code{Attack}, \code{Defense}, \code{Sp. Atk}, \code{Sp. Def}, \code{Speed} (\code{Total} \'e redundante e foi exclu\'ido; nomes, tipos e gera\c{c}\~ao tamb\'em, para isolar o efeito dos atributos cont\'inuos). Alvo: \code{Legendary} (\emph{False} 735 = 91,88\%; \emph{True} 65 = 8,12\%). \code{Name} identifica a linha nas predi\c{c}\~oes e \texttt{\#} define o grupo (721 esp\'ecies; 65 com mais de uma linha, m\'aximo 6; nenhum grupo mistura classes; os 65 lend\'arios pertencem a 46 esp\'ecies). Coluna \code{Type 2} tem 386 ausentes, mas n\~ao \'e usada. Como a acur\'acia da classe majorit\'aria j\'a \'e 91,88\%, a m\'etrica relevante \'e a discrimina\c{c}\~ao da classe minorit\'aria.
+
+\subsection{Hiperpar\^ametros e pipeline}
+\begin{table}[htbp]
+\centering\small
+\caption{Configura\c{c}\~ao dos experimentos (arquivos \code{experimentos/configs/*.yaml}).}
+\begin{tabular}{lrr}
+\toprule
+Par\^ametro & Iris & Pok\'emon \\
+\midrule
+Discretiza\c{c}\~ao & igual-frequ\^encia, 3 bins & igual-frequ\^encia, 3 bins \\
+\code{min_support} & 0,05 (contagem m\'in. 6 de 120) & 0,03 (contagem m\'in. 20 de 640) \\
+\code{min_confidence} & 0,5 & 0,5 \\
+\code{max_antecedent_length} & 3 & 3 \\
+Valida\c{c}\~ao & 5 dobras estratificadas, por linha & 5 dobras, por esp\'ecie (e por linha) \\
+Seed principal & 42 & 42 \\
+Varredura de seeds & 0--9 & 0--9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+Em cada dobra: ajuste dos cortes s\'o no treino; codifica\c{c}\~ao transacional (treino com classe, teste s\'o com preditores); CBA-RG; CBA-CB M1; infer\^encia no teste. As seis configura\c{c}\~oes avaliadas s\~ao: Iris com/sem discretiza\c{c}\~ao e Pok\'emon com/sem discretiza\c{c}\~ao $\times$ divis\~ao por esp\'ecie/por linha. ``Bruto'' significa que cada valor num\'erico distinto vira seu pr\'oprio item.
+
+\subsection{Protocolo de avalia\c{c}\~ao}
+\begin{itemize}
+  \item M\'etricas OOF agregadas (Se\c{c}\~ao A11) e baseline majorit\'ario.
+  \item \textbf{Seed principal (42)}: resultados detalhados --- matrizes de confus\~ao, dobras, regras, hist\'orico do M1. \textbf{Varredura de 10 seeds (0--9)}: m\'edia e desvio-padr\~ao populacional, para medir quanto os n\'umeros dependem da divis\~ao aleat\'oria.
+  \item \textbf{Compara\c{c}\~ao com o c\'odigo anterior}: o commit \code{fdc8cb6} foi executado num \emph{worktree} tempor\'ario com as mesmas seeds e a mesma divis\~ao por linha; por n\~ao ter predi\c{c}\~oes OOF, usa-se a defini\c{c}\~ao dele de acur\'acia (m\'edia das acur\'acias por dobra) e de recall (m\'edia por dobra).
+  \item \textbf{Auditoria independente}: \code{experimentos/auditoria.py} reconstr\'oi cada predi\c{c}\~ao apenas dos artefatos salvos (cortes, regras, hist\'orico), sem chamar o CBA, e recalcula as m\'etricas.
+\end{itemize}
+
+\subsection{Ambiente}
+Python 3.13.15, Windows 11; pandas 3.0.5, numpy 2.5.3, pyyaml 6.0.3, pytest 9.1.1; c\'odigo-base: commit \code{589f5f2} da branch \code{Baseline}. Todos os n\'umeros das tabelas foram gerados por \code{python -m experimentos.gerar_relatorio --com-antigo}.
+
+%=====================================================================
+\section{Resultados}
+%=====================================================================
+
+\subsection{Resultado principal}
+A Tabela~\ref{tab:principal} resume as seis configura\c{c}\~oes na seed 42.
+\input{tabelas/principal}
+
+Leituras principais:
+\begin{itemize}
+  \item \textbf{Iris discretizado}: 95,33\% de acur\'acia (MCC 0,931), muito acima dos 33,33\% da classe majorit\'aria. Setosa \'e perfeitamente separada; os erros est\'ao entre versicolor e virginica (Tabela~\ref{tab:conf_iris_disc}).
+  \item \textbf{Pok\'emon discretizado}: 94,13\% de acur\'acia (por esp\'ecie) contra 91,88\% da majorit\'aria, mas o ganho real aparece no recall da classe minorit\'aria (61,54\%) e no MCC (0,598), pois a majorit\'aria tem MCC 0.
+  \item \textbf{Sem discretiza\c{c}\~ao}: Iris cai para 78,67\%; o Pok\'emon fica em 91,88\%, \emph{exatamente} a majorit\'aria (MCC 0, acur\'acia balanceada 0,5).
+\end{itemize}
+
+\subsection{Matrizes de confus\~ao e m\'etricas por classe}
+\input{tabelas/conf_iris_disc}
+\input{tabelas/conf_iris_raw}
+\input{tabelas/conf_pokemon_disc_group}
+\input{tabelas/conf_pokemon_disc_row}
+\input{tabelas/conf_pokemon_raw_group}
+\input{tabelas/conf_pokemon_raw_row}
+\input{tabelas/classe_iris_disc}
+\input{tabelas/classe_pokemon_disc_group}
+
+No Pok\'emon por esp\'ecie, dos 65 lend\'arios, 40 s\~ao encontrados (recall 0,615) e 22 n\~ao lend\'arios s\~ao falsamente apontados como lend\'arios (precis\~ao 0,645); F1 da classe positiva = 0,630.
+
+\subsection{Variabilidade entre seeds}
+\input{tabelas/seeds}
+O resultado depende da divis\~ao aleat\'oria: no Iris discretizado a acur\'acia varia entre 92,67\% e 94,67\% nas seeds 0--9 (m\'edia 93,80\%), de modo que os 95,33\% da seed 42 ficam acima de toda a faixa observada nessas seeds. Para o Pok\'emon discretizado por esp\'ecie, a m\'edia \'e 93,33\% e o recall da classe minorit\'aria 59,2\% $\pm$ 4,4\%.
+
+\subsection{Intervalos de confian\c{c}a e incerteza}
+Os intervalos de confian\c{c}a de 95\% por bootstrap (Tabela~\ref{tab:principal}) ainda s\~ao amplos para o Pok\'emon: acur\'acia por esp\'ecie [92,1\%; 95,9\%], mas MCC [0,451; 0,719] e acur\'acia balanceada [0,716; 0,864]. A dispers\~ao do MCC entre dobras (desvio 0,104; intervalo 0,423--0,749) reflete haver apenas 13 lend\'arios por dobra de teste. Com 65 positivos totais, qualquer conclus\~ao fina sobre a classe minorit\'aria tem pouca precis\~ao.
+
+\subsection{Efeito de separar esp\'ecies (achado A05)}
+\input{tabelas/folds_linha}
+\input{tabelas/folds_pokemon}
+\input{tabelas/grupo_linha}
+
+Na divis\~ao por linha, 20, 20, 28, 25 e 33 esp\'ecies aparecem em treino e teste da mesma dobra; na divis\~ao por esp\'ecie, zero em todas. Na seed 42, os resultados s\~ao 94,50\% (linha) e 94,13\% (esp\'ecie), com o mesmo recall (40 de 65); o intervalo de confian\c{c}a se sobrep\~oe quase totalmente e, olhando s\'o essa seed, a diferen\c{c}a parece desprez\'ivel. \textbf{Por\'em, com 10 seeds, a divis\~ao por esp\'ecie \'e pior que a por linha em 8/10 seeds na acur\'acia (m\'edia $-0{,}67$ pp) e em 10/10 no MCC (m\'edia $-0{,}046$).} Ou seja, h\'a um efeito sistem\'atico, pequeno, compat\'ivel com algum vazamento de grupo na divis\~ao por linha, e a seed isolada subestimava isso. As dobras por esp\'ecie tamb\'em n\~ao s\~ao id\^enticas \`as por linha, de modo que parte da diferen\c{c}a pode vir da composi\c{c}\~ao das dobras; n\~ao se afirma causalidade al\'em da evid\^encia acima.
+
+\subsection{Baseline corrigida versus c\'odigo anterior}
+\input{tabelas/antigo_novo}
+
+\begin{itemize}
+  \item \textbf{Pok\'emon discretizado} (efeito do A01): 92,00\% $\to$ 94,50\% na seed 42 e recall da classe minorit\'aria 1,54\% $\to$ 61,54\%. Matriz (seed 42, por linha): antes TN=735, FP=0, FN=64, TP=1; depois TN=716, FP=19, FN=25, TP=40, coincidindo exatamente com o valor medido na auditoria do orientador. Nas 10 seeds: 92,04\% $\to$ 94,00\% e recall 3,23\% $\to$ 63,69\%.
+  \item \textbf{Iris discretizado}: 94,00\% $\to$ 95,33\% na seed 42, mas apenas 93,67\% $\to$ 93,80\% nas 10 seeds. O ganho da seed 42 \'e, em boa parte, a escolha da seed; no Iris o corte quase n\~ao muda o resultado m\'edio.
+  \item \textbf{Sem discretiza\c{c}\~ao}: sem mudan\c{c}a material (Pok\'emon: id\^entico; Iris: 76,87\% $\to$ 77,27\%).
+\end{itemize}
+A raz\~ao da grande mudan\c{c}a no Pok\'emon \'e mecânica: no c\'odigo antigo, a classe padr\~ao era a majorit\'aria no final de todas as regras selecionadas; como as regras ordenadas por confian\c{c}a s\~ao quase todas da classe \emph{False} e cobrem tudo, o padr\~ao era sempre \emph{False}. Com o corte, o M1 para antes de cobrir todos os casos --- sobram os dif\'iceis e a classe padr\~ao passa a ser \emph{True} (Se\c{c}\~ao~\ref{sec:m1}).
+
+\subsection{Por que a discretiza\c{c}\~ao importa}
+\input{tabelas/tamanho}
+Sem discretiza\c{c}\~ao, cada valor num\'erico distinto \'e um item; com \code{min_support}=0,03 (contagem m\'inima 20 em 640), poucos valores brutos s\~ao frequentes, e nenhum que caracterize \emph{Legendary=True}. Resultado no Pok\'emon bruto (dobra 0): 63 regras candidatas, todas (63 de 63) prevendo \emph{False}; a cobertura seleciona 58, mas o M1 mant\'em apenas 1 (\code{HP=60 => Legendary=False}), pois adicionar mais regras \emph{False} n\~ao reduz o erro total (52 em todos os prefixos) e o primeiro m\'inimo \'e o prefixo 1. O classificador final \'e, na pr\'atica, a classe majorit\'aria (uso da classe padr\~ao 91,6\%). O c\'odigo anterior daria as mesmas predi\c{c}\~oes (todas \emph{False}), por isso o recall continua 0\%. No Iris bruto, as regras ficam com um \'unico item (comprimento m\'edio 1,00), o que explica a queda para 78,67\%. A discretiza\c{c}\~ao em três faixas por atributo gera ~400 regras candidatas no Pok\'emon e antecedentes de at\'e três condi\c{c}\~oes.
+
+\subsection{Cortes de discretiza\c{c}\~ao aprendidos}
+\input{tabelas/cortes_iris}
+\input{tabelas/cortes_pokemon}
+Os cortes s\~ao aprendidos s\'o no treino da dobra 0. As ocupa\c{c}\~oes s\~ao aproximadamente iguais; no Iris, \code{SepalWidthCm} tem 36/36/48 por haver empates (valores repetidos n\~ao s\~ao separados). Valores de teste fora do intervalo do treino caem no bin extremo mais pr\'oximo.
+
+\subsection{Resultados por dobra}
+\input{tabelas/folds_iris}
+No Pok\'emon por esp\'ecie (Tabela~\ref{tab:folds_pokemon}), cada dobra de teste tem 160 linhas e exatamente 13 lend\'arios; a acur\'acia varia de 93,13\% a 96,25\% e o recall de 30,8\% a 76,9\%, outra evid\^encia de grande variabilidade na classe minorit\'aria. Em todas as dobras o prefixo escolhido pelo M1 coincide com o n\'umero de regras finais por constru\c{c}\~ao.
+
+%---------------------------------------------------------------------
+\subsection{O corte do M1 em a\c{c}\~ao}\label{sec:m1}
+%---------------------------------------------------------------------
+\input{tabelas/m1_iris}
+\input{tabelas/m1_pokemon}
+No Iris (dobra 0), as quatro primeiras regras reduzem o erro total de 40 para 4 e as seguintes n\~ao melhoram: o prefixo escolhido tem $k=4$, enquanto a cobertura selecionou 10 regras; as outras 6 s\~ao cortadas. No Pok\'emon (dobra 3), o padr\~ao passa de \emph{False} a \emph{True} por volta de $k=34$, o erro total cai de 52 para 30 em $k=39$ (escolhido), volta a subir para 34 em $k=40$ e para 52 em $k=41$ (todos os casos cobertos, padr\~ao de fallback \emph{False}). A \textbf{evid\^encia expl\'icita do corte} \'e, portanto, a coluna ``Erro total'': o M1 n\~ao fica com o \'ultimo prefixo, mas com o primeiro de menor erro. Sem o corte, ficariam 41 regras e padr\~ao \emph{False} --- o comportamento anterior.
+
+\subsection{Regras geradas}
+\input{tabelas/regras_iris}
+\input{tabelas/regras_pokemon}
+As primeiras regras do Pok\'emon s\~ao de alta confian\c{c}a e preveem \emph{False}; a classe minorit\'aria \'e capturada principalmente pela classe padr\~ao e por regras posteriores. Na dobra 0 do Pok\'emon, das 397 regras candidatas, 50 s\~ao finais, 3 foram selecionadas e cortadas, e 344 n\~ao foram selecionadas pela cobertura (n\~ao classificavam corretamente nenhum caso restante).
+
+%---------------------------------------------------------------------
+\subsection{Rastreamento de predi\c{c}\~oes do registro original at\'e a classe}
+%---------------------------------------------------------------------
+Os dois exemplos abaixo foram obtidos com \code{python -m experimentos.auditoria trace} sobre a execu\c{c}\~ao do Pok\'emon discretizado por esp\'ecie (seed 42, dobra 0) --- usando apenas os artefatos salvos --- e a predi\c{c}\~ao reconstru\'ida coincidiu com a registrada no OOF.
+
+\paragraph{Exemplo 1 --- linha 422, \emph{Kyogre (Primal Kyogre)}, classe real \emph{True}.}
+Atributos brutos e itens (cortes do treino da dobra): $\text{HP}=100\to\text{bin2}$ (cortes 58, 75); $\text{Attack}=150\to\text{bin2}$ (60, 90); $\text{Defense}=90\to\text{bin2}$ (58, 80); $\text{Sp.\,Atk}=180\to\text{bin2}$ (55, 85); $\text{Sp.\,Def}=160\to\text{bin2}$ (55, 80); $\text{Speed}=90\to\text{bin2}$ (51, 80). Das 397 regras candidatas, 41 s\~ao compat\'iveis com o caso; a de maior preced\^encia \'e \#356 \code{Defense=bin2 => Legendary=False} (confian\c{c}a 199/242 $=0{,}822$), que o M1 selecionou na posi\c{c}\~ao 52 de 53 mas \textbf{cortou} (o prefixo escolhido tem 50 regras, erro total m\'inimo 33). Nenhuma regra final cobre o caso, portanto vale a classe padr\~ao do prefixo escolhido, \emph{True} --- predi\c{c}\~ao \textbf{correta}. Sem o corte, a regra \#356 decidiria \emph{False} (erro).
+
+\paragraph{Exemplo 2 --- linha 551, \emph{Shaymin (Sky Forme)}, classe real \emph{True}.}
+Itens: HP=bin2, Attack=bin2, Defense=bin1, Sp.\,Atk=bin2, Sp.\,Def=bin1, Speed=bin2. Entre as 41 regras compat\'iveis, a primeira da lista final \'e \#207 \code{Defense=bin1 AND Sp. Def=bin1 => Legendary=False} (confian\c{c}a 107/108 $=0{,}991$; suporte 0,167; \'indice 42, isto \'e, a 43.\textsuperscript{a} regra da lista final), que decide \emph{False} --- predi\c{c}\~ao \textbf{incorreta}. A regra compat\'ivel \code{Defense=bin1 => Legendary=False} tamb\'em foi cortada, mas n\~ao altera esta decis\~ao, pois uma regra de maior preced\^encia mantida no prefixo j\'a cobre o caso.
+
+\subsection{Custo computacional}
+Cada experimento de cinco dobras leva $\approx 0{,}1$~s no Pok\'emon discretizado e $\approx 0{,}03$~s no Iris (Tabela~\ref{tab:tamanho}); o tempo de execu\c{c}\~ao n\~ao \'e um fator limitante nestes datasets.
+
+%=====================================================================
+\section{Fidelidade ao artigo original: condições do paper, poda e sensibilidade}\label{sec:fidelidade}
+
+\subsection{Objetivo e referência}
+Para que a baseline sirva de ponto de partida para melhorar o CBA, é preciso saber o quanto ela se parece com o CBA \emph{publicado}. O artigo reporta o Iris (Tabela~1), e foi a única comparação com um número publicado possível, pois o Pokémon não consta do artigo. A linha \texttt{iris}, coluna \texttt{CBA (CARs)} (somente CARs, sem as regras infrequentes), informa: \textbf{erro de 7,1\%} (igual com e sem poda), \textbf{72 CARs} sem poda e \textbf{23} com poda (prCARs), e \textbf{5 regras} no classificador final (M1). O texto do artigo informa as condições: \code{minconf} 50\%, \code{minsup} 1\%, discretização por entropia de Fayyad e Irani, validação cruzada em 10 dobras, limite de 80\,000 regras candidatas em memória (irrelevante no Iris). \emph{Observação de método}: a extração automática do texto do PDF desalinhava as linhas da tabela; a linha do Iris foi recuperada com o modo de tabelas do \code{pdftotext} e o cabeçalho foi conferido coluna a coluna.
+
+\subsection{Experimento 1 --- Iris, passo a passo das condições da baseline até as do artigo}
+Cada variante muda um fator em relação à anterior (10 dobras, como no artigo; seeds 0--9; erro $=1-$ acurácia OOF, equivalente à média dos erros das dobras, que têm 15 casos cada):
+\input{tabelas/fid_iris}
+\input{tabelas/fid_cortes}
+
+\begin{itemize}
+  \item \textbf{Erro}: com as condições do artigo (MDL, 1\%, sem limite) o erro é $6{,}53\% \pm 0{,}88\%$, contra 7,1\% do artigo. A diferença (0,57 ponto percentual) é menor que um desvio-padrão entre seeds e menor que o passo de resolução do dataset (um erro em 150 casos vale 0,67 ponto percentual): os resultados são \textbf{compatíveis}. O mesmo erro (6,5\%) se mantém de toda a trajetória baseline $\to$ artigo, ou seja, no Iris essas escolhas de configuração não mudam materialmente o erro.
+  \item \textbf{Tamanho do classificador}: 4,7 regras contra 5 do artigo (a baseline por quantis tem 8,3). Aqui a discretização pesa: com poucas faixas por atributo (as do MDL), o classificador encolhe quase pela metade com o mesmo erro.
+  \item \textbf{Número de regras candidatas}: sem poda, 92,3 CARs contra 72 do artigo (cerca de 28\% a mais); com poda, 21,3 prCARs contra 23 (cerca de 7\% a menos). A diferença sem poda \textbf{não foi explicada}: sem o código original não é possível separar efeitos de detalhes de discretização (cortes por dobra, tratamento de empates), partição das dobras e convenções de contagem. Que a versão com poda fique tão próxima (21 contra 23) sugere que o conjunto de regras que importa é parecido.
+  \item \textbf{A poda} reduz as CARs de 92,3 para 21,3 (cerca de 77\%) sem alterar o erro médio ($6{,}53\%$), o que está de acordo com o artigo (``acurácia praticamente a mesma com e sem poda''); no Iris, aliás, o artigo mostra o erro exatamente igual (7,1\%) nas duas colunas.
+  \item \textbf{Mais próximo do artigo não é melhor}: a variante \emph{quantis, 1\%, sem limite} tem erro bem menor ($4{,}07\%$), com 119 regras candidatas e 6,9 regras no classificador. Não foi investigada a causa (provavelmente faixas mais finas que as do MDL permitem regras mais específicas); registra-se apenas que a configuração do artigo não minimiza o erro e que a escolha da discretização da baseline de comparação é uma decisão da Fase~2.
+\end{itemize}
+
+\subsection{Experimento 2 --- Pokémon (checagem de sensibilidade)}
+Sem número publicado, esta checagem apenas verifica se as conclusões do Pokémon mudam quando a configuração se aproxima da do artigo (5 dobras por espécie, seeds 0--9):
+\input{tabelas/fid_pokemon}
+\begin{itemize}
+  \item As conclusões \textbf{se mantêm}: em todas as variantes o CBA identifica cerca de 56--62\% dos lendários e o MCC fica em 0,55--0,59, muito acima da classe majoritária (MCC 0). Nenhuma variante muda a história.
+  \item A entropia/MDL reduz o classificador pela metade (de 42,5 para 20--22 regras) com acurácia, MCC e recall ligeiramente melhores ou iguais (acurácia 93,3\% $\to$ 93,9--94,0\%; MCC 0,555 $\to$ 0,58--0,59), diferenças da ordem do desvio entre seeds para o recall (cerca de 4 pontos percentuais).
+  \item Nas condições do artigo, o Pokémon gera 650 CARs; a poda as reduz a 65 (cerca de 90\%) com acurácia equivalente ($94{,}16\%$ contra $93{,}91\%$), mas com recall médio um pouco menor ($56{,}3\%$ contra $60{,}3\%$), dentro do desvio entre seeds; não há evidência suficiente para afirmar que a poda prejudica a classe minoritária.
+  \item Quantis com 1\% e sem limite geram 1\,265 regras candidatas e 43 no classificador, sem ganho de qualidade em relação à baseline.
+\end{itemize}
+
+\subsection{O que se conclui e o que não}
+\begin{itemize}
+  \item \textbf{Conclui-se}: sob as condições do artigo, a baseline reproduz a \emph{ordem de grandeza} do CBA publicado no Iris (erro, tamanho do classificador final e número de prCARs). Isso sustenta, de modo independente do pyARC, que a implementação é um CBA clássico fiel.
+  \item \textbf{Não se conclui}: igualdade com o artigo. O número de CARs sem poda difere em cerca de 28\%, sem causa identificada; a comparação envolve um único dataset publicado, outra implementação e outra partição das dobras.
+  \item \textbf{Escolhas nossas} que o artigo não define: fórmula e nível de confiança do erro pessimista, comparação de regras de uma condição com a regra vazia, desempate entre regras empatadas e entre consequentes.
+  \item \textbf{Para a comparação com o CBA-QS}: a poda pessimista remove condições desnecessárias, o que conceitualmente se sobrepõe a penalizar o comprimento do antecedente. Para não atribuir ao CBA-QS um ganho que o CBA clássico já obtém, a comparação futura deve usar \textbf{as duas baselines} --- CBA e CBA com poda ---, ambas disponíveis agora.
+\end{itemize}
+
+%=====================================================================
+\section{Verifica\c{c}\~ao e testes}
+%=====================================================================
+
+\subsection{Suite de testes}
+A suite passou de 36 testes na \code{main} (29 do CBA cl\'assico + 7 do CBA-QS) para \textbf{463}, todos passando. Dos 36, 35 permaneceram intactos; um teve a expectativa corrigida: \code{test_build_classifier_m1_end_to_end} fixava o M1 \emph{sem} corte (três regras); o correto, conferido \`a m\~ao, \'e duas regras com padr\~ao $N$, pois os prefixos t\^em erro total 4, 3 e 3 e vence o primeiro m\'inimo.
+\begin{table}[htbp]
+\centering\small
+\caption{Testes por arquivo (463 no total).}
+\begin{tabular}{lrp{8.4cm}}
+\toprule
+Arquivo & Testes & Cobertura \\
+\midrule
+\code{test_apriori.py} & 7 & Suportes manuais, poda por \emph{downward closure}, ordem de gera\c{c}\~ao \\
+\code{test_fp_growth.py} & 4 & Verifica\c{c}\~ao cruzada contra Apriori \\
+\code{test_association_rules.py} & 12 & Suporte/confian\c{c}a/lift; transa\c{c}\~oes sem alvo; NaN; tipos mistos \\
+\code{test_cba.py} & 6 & CBA-RG/CB no dataset artificial; M1 com corte \\
+\code{test_cba_baseline.py} & 25 & A01 (borda, hist\'orico), A02, A10, valida\c{c}\~ao \\
+\code{test_discretization.py} & 16 & NaN, degenerados, constante, fronteira, categ\'orica, \code{is_fitted_} \\
+\code{test_runner.py} & 60 & Parti\c{c}\~oes, config, vazamento, OOF, m\'etricas, migra\c{c}\~ao, grupos, op\c{c}\~oes MDL/poda \\
+\code{test_discretization_mdl.py} & 78 & Entropia/MDL: c\'alculos \`a m\~ao, referência ingênua em 60 casos, Iris completo, sem vazamento \\
+\code{test_pruning.py} & 47 & Erro pessimista (limite binomial exato), cenários de poda, validações \\
+\code{test_optimizations.py} & 201 & Equival\^encia das otimiza\c{c}\~oes \\
+\code{test_cba_qs.py} & 7 & CBA-QS (congelado, inalterado) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Testes de aceite do Relat\'orio~02}
+\begin{itemize}
+  \item \textbf{A01}: exemplo do relat\'orio $\to$ uma regra, padr\~ao $N$, um erro; empate entre prefixos; mudan\c{c}a de padr\~ao; sem CARs; erros por prefixo contra avalia\c{c}\~ao expl\'icita.
+  \item \textbf{A02}: exemplo empatado $\to$ exatamente uma regra; três classes; repetibilidade.
+  \item \textbf{A03/A07/A08}: NaN em \emph{fit} e \emph{transform}; cortes nunca NaN; $0/1$ em dois bins; constante em um; exatamente no corte, abaixo e acima; \code{columns=[]}.
+  \item \textbf{A04}: infer\^encia aceita dados sem a coluna-alvo; permutar/inverter r\'otulos de teste n\~ao altera predi\c{c}\~oes.
+  \item \textbf{A05}: interse\c{c}\~ao de grupos treino/teste vazia em cada dobra; cada linha uma vez nos testes; contagens registradas.
+  \item \textbf{A06}: $[A,B,C]$ com $k=3$ rejeitado; classes n\~ao divis\'iveis por $k$ equilibradas, disjuntas, sem dobra vazia.
+  \item \textbf{A09}: YAML \code{true} equivale a \code{"True"}; limiares NaN, alvo entre preditores e limites negativos falham cedo.
+  \item \textbf{A10}: $2/6$ e $3/9$ empatam e vence o suporte $3/10$; fronteiras de \code{min_confidence}/\code{min_support}.
+  \item \textbf{A11/A12}: m\'etricas recalculadas das predi\c{c}\~oes OOF $=$ resumo; execu\c{c}\~oes n\~ao se sobrescrevem; cabe\c{c}alho do CSV migrado sem deslocar colunas.
+\end{itemize}
+
+\subsection{Auditoria independente das execu\c{c}\~oes}
+\label{sec:auditoria}
+Para as execu\c{c}\~oes principais (Iris discretizado; Pok\'emon discretizado por esp\'ecie e por linha), \code{python -m experimentos.auditoria verify} confirmou, com resultado \textbf{APROVADO}: (i) cada linha do dataset tem exatamente uma predi\c{c}\~ao OOF (150/150 e 800/800); (ii) as predi\c{c}\~oes reconstru\'idas \emph{somente} de cortes e regras salvos s\~ao id\^enticas \`as OOF (150/150 e 800/800); (iii) acur\'acia, acur\'acia balanceada, macro-F1, MCC e matriz de confus\~ao recalculados das predi\c{c}\~oes OOF coincidem com o resumo (diferen\c{c}a $<10^{-12}$); (iv) em cada dobra o prefixo do M1 escolhido \'e o primeiro de erro total m\'inimo; (v) grupos compartilhados por dobra: $[0,0,0,0,0]$ na divis\~ao por esp\'ecie e $[20,20,28,25,33]$ por linha.
+
+\subsection{Compara\c{c}\~ao com o pyARC (refer\^encia externa)}\label{sec:pyarc}
+Os testes da suite confirmam que o c\'odigo segue a \emph{nossa leitura} do artigo; faltava confront\'a-lo com outra implementa\c{c}\~ao. Usou-se o \textbf{pyARC} 1.1.4 (Filip e Kliegr, licen\c{c}a MIT, instalado do PyPI), a implementa\c{c}\~ao de refer\^encia do CBA citada na Fase~1 do projeto. Nenhum c\'odigo dele foi copiado para \code{fase2_implementacao}; ele \'e usado apenas como term\^ometro externo.
+
+\paragraph{M\'etodo.} O pyARC exige o \code{pyfim} (minerador em C), que n\~ao compila nesta m\'aquina (sem compilador); por isso roda num container Docker isolado (Python 3.11, numpy 1.26.4, pandas 2.0.3; \code{experimentos/pyarc_docker/Dockerfile}). As dobras, a discretiza\c{c}\~ao e as nossas regras s\~ao geradas pelo nosso pipeline e entregues ao container; o pyARC recebe \emph{exatamente os mesmos dados de treino e teste j\'a discretizados}, o que isola o CBA-RG e o CBA-CB de todo o resto. Foram comparadas 90 dobras (Iris; Pok\'emon por esp\'ecie; Pok\'emon por linha; seeds 42, 0, 1, 2, 3 e 4; 5 dobras por seed). Os par\^ametros foram mapeados assim: \code{support} e \code{confidence} do pyARC em porcentagem e \code{maxlen} $=$ \code{max_antecedent_length}$+1$ (o pyARC conta o item de classe). A compara\c{c}\~ao tem quatro n\'iveis:
+\begin{enumerate}
+  \item \textbf{Minera\c{c}\~ao}: as regras (antecedente, classe, contagem conjunta) que passam em \code{min_support} e \code{min_confidence}, antes de qualquer escolha, coincidem com as do \code{fim.apriori} do pyARC?
+  \item \textbf{Regra poss\'ivel (PR)}: aplicando ao pyARC a escolha de um consequente por antecedente do artigo, obt\'em-se as nossas CARs?
+  \item \textbf{CBA-CB isolado (v3)}: alimentando o M1 do pyARC com as \emph{nossas} CARs, o classificador e as predi\c{c}\~oes coincidem?
+  \item \textbf{Ponta a ponta (v0)}: pyARC puro (\code{CBA.fit}) contra a nossa baseline; as variantes intermedi\'arias v1 (sem regras de antecedente vazio) e v2 (v1 mais PR) atribuem as diferen\c{c}as.
+\end{enumerate}
+
+\input{tabelas/pyarc_niveis}
+\input{tabelas/pyarc_ponta}
+\input{tabelas/pyarc_contagens}
+
+\paragraph{Resultados.}
+\begin{itemize}
+  \item \textbf{Minera\c{c}\~ao e PR}: id\^enticas em 90/90 dobras. Os conjuntos de \emph{ruleitems} coincidem por inteiro (2\,298 no Iris, 12\,070 e 11\,989 nos dois protocolos do Pok\'emon, com as mesmas contagens conjuntas), e a PR do pyARC reproduz exatamente as nossas CARs.
+  \item \textbf{CBA-CB isolado}: com as mesmas CARs na mesma ordem, o M1 do pyARC devolve classificador (regras, ordem e classe padr\~ao) e predi\c{c}\~oes id\^enticos aos nossos em 90/90 dobras. Isso confirma, contra uma implementa\c{c}\~ao independente, a cobertura sequencial, o c\'alculo de erro por prefixo e o corte no primeiro m\'inimo (A01).
+  \item \textbf{Ponta a ponta}: os classificadores nem sempre s\~ao id\^enticos (Iris 27/30 dobras; Pok\'emon 5/30), mas as predi\c{c}\~oes concordam em 100\% dos casos no Iris e em 99,98\% no Pok\'emon (uma diverg\^encia em 4\,800 casos de teste em cada protocolo; acur\'acia 93,44\% contra 93,46\% por esp\'ecie e 93,79\% contra 93,81\% por linha). A causa \'e a \textbf{ordem entre regras empatadas}: h\'a centenas de grupos de regras com mesma confian\c{c}a exata, suporte e comprimento, e o pyARC os desempata pela ordem de sa\'ida do \code{pyfim}, enquanto n\'os usamos a ordem de gera\c{c}\~ao do Apriori (o artigo diz apenas ``gerada antes''). Como v3 ($=$ v2 com a nossa ordem) \'e id\^entico ao nosso, a ordem de empates \'e a \'unica fonte de diferen\c{c}a identificada: as CARs s\~ao as mesmas, e n\~ao houve nenhum empate de confian\c{c}a exata com confian\c{c}as em ponto flutuante diferentes no pyARC (coluna ``ru\'ido'' da Tabela~\ref{tab:pyarc_contagens}: zero).
+  \item \textbf{O que n\~ao mudou o resultado}: as variantes v0, v1 e v2 produzem exatamente o mesmo classificador (regras, ordem e classe padr\~ao) e as mesmas predi\c{c}\~oes em 90/90 dobras. Logo, nestes dados, nem as regras de antecedente vazio do pyARC nem a presen\c{c}a de v\'arios consequentes por antecedente alteram o classificador final do M1: uma regra irm\~a de mesma condi\c{c}\~ao s\'o poderia ser selecionada se a vencedora n\~ao fosse, o que n\~ao ocorreu. A corre\c{c}\~ao A02 \'e, portanto, uma corre\c{c}\~ao de \emph{fidelidade ao artigo}, sem efeito mensur\'avel nestes datasets. Do mesmo modo, o ru\'ido de ponto flutuante do achado A10 \'e real em princ\'ipio, mas n\~ao se manifestou nestes dados.
+\end{itemize}
+
+\paragraph{Diferen\c{c}as de projeto observadas no pyARC (pela leitura do c\'odigo e dos testes).} (i) N\~ao implementa a PR do artigo: devolve todas as regras do \code{fim.apriori}. (ii) Gera regras de \emph{antecedente vazio} (por exemplo \texttt{\{\} => Legendary=False}, com confian\c{c}a igual \`a preval\^encia 0,92, uma por dobra no Pok\'emon); o Relat\'orio~02 considera correto descart\'a-las. (iii) Compara confian\c{c}a e suporte em ponto flutuante. (iv) A classe padr\~ao em empate depende da ordem de itera\c{c}\~ao de um \code{set}, e o r\'otulo ``None'' \'e usado quando todos os casos s\~ao cobertos. (v) \textbf{Cuidado de uso}: com o padr\~ao \code{unique_transactions=False}, as transa\c{c}\~oes s\~ao \emph{hasheadas pelo conte\'udo} e o \code{set(dataset)} do M1 colapsa duplicatas (no dataset artificial de 10 casos, 4 \'unicos), zerando os erros por prefixo; nele o pyARC devolveu tr\^es regras e padr\~ao $P$, ao passo que com \code{unique_transactions=True} devolve duas regras e padr\~ao $N$, igual ao nosso e ao c\'alculo manual (Se\c{c}\~ao~\ref{sec:m1}). Toda a compara\c{c}\~ao usou o modo correto.
+
+\paragraph{Limites desta compara\c{c}\~ao.} (a) As duas implementa\c{c}\~oes partem do mesmo artigo; a concord\^ancia mostra que ambas implementam igualmente o pseudoc\'odigo, n\~ao que ele esteja livre de ambiguidades (por exemplo, empates). (b) Foi comparado somente o M1, em três configura\c{c}\~oes e 6 seeds, sempre sobre a nossa discretiza\c{c}\~ao e as nossas dobras (o pyARC n\~ao discretiza nem particiona). (c) Os achados de pr\'e-processamento e de protocolo de valida\c{c}\~ao (A03--A09, A11, A12) n\~ao s\~ao cobertos por esta compara\c{c}\~ao. (d) O pyARC n\~ao \'e ele mesmo uma verdade absoluta: foi lido e testado como refer\^encia, e suas diferen\c{c}as de projeto est\~ao listadas acima.
+
+\subsection{Artefatos de cada execu\c{c}\~ao}\label{sec:artefatos}
+Cada execu\c{c}\~ao do runner grava \code{experimentos/resultados/<run_id>/} (ignorado pelo git) com:
+\begin{center}\small
+\begin{tabular}{lp{9.4cm}}
+\toprule
+Arquivo & Conte\'udo \\
+\midrule
+\code{summary.json} & Resumo, m\'etricas OOF, baseline majorit\'ario, incerteza, tempos por dobra \\
+\code{config.json} & Configura\c{c}\~ao normalizada, seed, commit, ramo, hash do dataset, vers\~oes \\
+\code{environment.txt} & Todos os pacotes instalados (\texttt{nome==vers\~ao}) \\
+\code{partitions.json} & \'Indices e identificadores de teste, contagens por classe, grupos \\
+\code{discretization.json} & Cortes, conven\c{c}\~ao de fronteira, pol\'itica de ausentes, ocupa\c{c}\~ao dos bins \\
+\code{rules.json} & Antecedente, consequente, contagens, confian\c{c}a exata, preced\^encia, estado (final / cortada pelo M1 / n\~ao selecionada) \\
+\code{m1_history.json} & Por prefixo: regra, erros, residuais, padr\~ao, erro total, escolhido \\
+\code{oof_predictions.csv} & Dobra, linha, id, grupo, classe real e prevista, regra acionada, uso do padr\~ao \\
+\code{metrics.json} & Matriz de confus\~ao, m\'etricas por classe e por dobra, baseline \\
+\bottomrule
+\end{tabular}
+\end{center}
+O \code{resumo.csv} (versionado) recebe uma linha por execu\c{c}\~ao com as m\'etricas OOF e o \code{run_id}.
+
+%=====================================================================
+\section{Discuss\~ao}
+%=====================================================================
+
+\paragraph{O corte do M1 \'e a corre\c{c}\~ao que importa.} O resultado mais claro do trabalho \'e a mudan\c{c}a do Pok\'emon discretizado: de um classificador equivalente \`a classe majorit\'aria (recall 1,5\%) para um que identifica 61,5\% dos lend\'arios, sem mudar CARs, atributos nem divis\~ao --- apenas implementando o passo 4 da Figura~2. O pr\'oprio relat\'orio do orientador previa essa mudan\c{c}a e os n\'umeros reproduzidos coincidem exatamente com os dele.
+
+\paragraph{Acur\'acia isolada engana.} No Pok\'emon, a classe majorit\'aria atinge 91,88\%; o CBA corrigido, 94,13\%. Os ganhos s\~ao pequenos em acur\'acia e grandes em MCC (0 $\to$ 0,6) e recall. Por isso as conclus\~oes devem usar MCC, acur\'acia balanceada e recall da classe positiva.
+
+\paragraph{A discretiza\c{c}\~ao \'e decisiva para este algoritmo.} Sem ela, o espa\c{c}o de itens fica esparso demais para o \code{min_support} escolhido; o classificador degenera. Isso n\~ao diz que a discretiza\c{c}\~ao por quantis seja \'otima, apenas que \'e necess\'ario algum agrupamento de valores; o estudo controlado de discretiza\c{c}\~ao e de limiares \'e a Fase~2 do plano.
+
+\paragraph{Avalia\c{c}\~ao com uma \'unica seed pode enganar.} Dois exemplos deste trabalho: o ganho do Iris (94,00\% $\to$ 95,33\%) \'e pouco mais que a escolha da seed (93,67\% $\to$ 93,80\% em m\'edia); e o efeito de separar esp\'ecies parecia desprez\'ivel na seed 42, mas \'e sistem\'atico em 10 seeds. Recomenda-se manter a varredura de seeds nas pr\'oximas fases.
+
+\subsection{Limita\c{c}\~oes e amea\c{c}as \`a validade}
+\begin{itemize}
+  \item \textbf{Poucos positivos}: 65 lend\'arios (13 por dobra); IC amplos para MCC e recall.
+  \item \textbf{Escopo restrito}: um dataset multiclasse balanceado e um bin\'ario desbalanceado; a qualidade do M1 em outros regimes n\~ao foi avaliada.
+  \item \textbf{Discretiza\c{c}\~ao e limiares fixos}: 3 bins, \code{min_support} e \code{min_confidence} n\~ao foram otimizados (e n\~ao h\'a sele\c{c}\~ao em valida\c{c}\~ao interna, que s\'o seria necess\'aria se houvesse busca de hiperpar\^ametros).
+  \item \textbf{Divis\~ao por grupo gulosa e aproximada}: estratifica\c{c}\~ao por classe n\~ao \'e exata quando grupos misturam classes (n\~ao ocorre no Pok\'emon, onde nenhum grupo mistura).
+  \item \textbf{Bootstrap} percent\'ilico com 1000 reamostragens sobre predi\c{c}\~oes OOF de um \'unico protocolo de valida\c{c}\~ao cruzada; n\~ao captura a variabilidade do treinamento.
+  \item \textbf{Compara\c{c}\~ao com o c\'odigo antigo} usa m\'edias por dobra (a \'unica m\'etrica que ele produz), enquanto as demais tabelas usam m\'etricas OOF agregadas.
+  \item \textbf{Desvios do artigo} (desempate, fallback, discretiza\c{c}\~ao) podem alterar detalhes em casos limite.
+  \item \textbf{Fidelidade ao artigo}: a compara\c{c}\~ao com um n\'umero publicado usa um \'unico dataset (Iris), outra implementa\c{c}\~ao e outra parti\c{c}\~ao das dobras, e o n\'umero de CARs sem poda difere em cerca de 28\% sem causa identificada (Se\c{c}\~ao~\ref{sec:fidelidade}).
+  \item \textbf{Refer\^encia externa}: a compara\c{c}\~ao com o pyARC (Se\c{c}\~ao~\ref{sec:pyarc}) cobre s\'o o M1, sobre a nossa discretiza\c{c}\~ao e dobras, e ambas as implementa\c{c}\~oes partem do mesmo artigo.
+\end{itemize}
+
+\subsection{O CBA-QS na branch}\label{sec:cbaqs}
+\code{cba_qs.py}, seus testes e a op\c{c}\~ao \code{cba_qs} do runner foram mantidos \textbf{sem altera\c{c}\~ao}. Entretanto, como o CBA-QS reaproveita \code{build_classifier_m1}, ele herda o corte do M1 e as mudan\c{c}as de A02 e A10; portanto, \textbf{resultados antigos do CBA-QS n\~ao s\~ao comparáveis} com os atuais. Seus 7 testes passam e um teste de fuma\c{c}a confirma que o runner o executa, mas n\~ao foi feita nenhuma valida\c{c}\~ao. A decis\~ao de como tratar essa herança cabe \`a fase de compara\c{c}\~ao.
+
+%=====================================================================
+\section{Itens n\~ao implementados}
+%=====================================================================
+\begin{itemize}
+  \item Categoria reservada ``ausente'' para NaN (A03): hoje rejeita-se.
+  \item Integra\c{c}\~ao do FP-Growth ao CBA-RG (A12): depende de definir a pol\'itica de preced\^encia.
+  \item Sele\c{c}\~ao de hiperpar\^ametros em valida\c{c}\~ao interna e ROC-AUC/PR-AUC (A11): n\~ao se aplicam ao CBA cl\'assico sem busca de hiperpar\^ametros e sem escore de ranking.
+  \item M2 e QCBA (fases posteriores). A poda pessimista agora existe como opção (Seção~\ref{sec:extensoes}), mas sua fórmula e nível de confiança são escolhas nossas.
+  \item Sorteio no desempate do CBA-RG (substitu\'ido por regra determin\'istica).
+\end{itemize}
+
+%=====================================================================
+\section{Conclus\~ao}
+%=====================================================================
+O CBA cl\'assico (CBA-RG + CBA-CB M1) da branch \code{Baseline} agora segue o algoritmo do artigo nos pontos exigidos pelo Relat\'orio~02: um consequente por antecedente, precedência com razões exatas e corte de erro mínimo por prefixo no M1; o pré-processamento tem contratos explícitos, a validação é por grupo quando cabe, e cada execução é auditável (regras, cortes, histórico do M1, predições OOF, métricas reproduzíveis). Nas condi\c{c}\~oes do artigo, o Iris reproduz a ordem de grandeza do CBA publicado (erro 6,53\% contra 7,1\%; 21 prCARs contra 23; 4,7 regras contra 5), e a poda pessimista, agora dispon\'ivel como op\c{c}\~ao, reduz as regras em cerca de 77\% sem alterar o erro (Se\c{c}\~ao~\ref{sec:fidelidade}). Contra o pyARC (refer\^encia externa), a minera\c{c}\~ao, a regra poss\'ivel e o M1 coincidem em 90/90 dobras, e as predi\c{c}\~oes ponta a ponta concordam em 99,98--100\% (Se\c{c}\~ao~\ref{sec:pyarc}). Os crit\'erios de aceite do relat\'orio foram demonstrados: uma predi\c{c}\~ao foi explicada do registro original at\'e a classe, o corte do M1 foi exibido no hist\'orico de erro e as m\'etricas foram reproduzidas a partir das predi\c{c}\~oes salvas. Os n\'umeros de refer\^encia para as pr\'oximas fases s\~ao: Iris discretizado 95,33\% (93,80\% $\pm$ 0,85\% em 10 seeds) e Pok\'emon discretizado por esp\'ecie 94,13\% de acur\'acia, MCC 0,598 e recall 61,54\% (93,33\% $\pm$ 0,42\%, MCC 0,555 e recall 59,2\% em 10 seeds). A baseline deve ser revisada pelo orientador antes de qualquer compara\c{c}\~ao com o CBA-QS.
+
+%=====================================================================
+\appendix
+\section{Como reproduzir}
+%=====================================================================
+\begin{verbatim}
+# ambiente
+python -m venv .venv && .venv/Scripts/activate
+pip install -r requirements.txt
+
+# testes (463)
+pytest tests/
+
+# experimentos individuais
+python -m experimentos.runner --config experimentos/configs/iris.yaml
+python -m experimentos.runner --config experimentos/configs/pokemon.yaml
+python -m experimentos.runner --config experimentos/configs/pokemon.yaml --split row
+python -m experimentos.runner --config experimentos/configs/pokemon.yaml --sem-discretizar
+
+# auditoria de uma execucao
+python -m experimentos.auditoria verify  --run experimentos/resultados/<run_id>
+python -m experimentos.auditoria history --run <dir> --fold 3
+python -m experimentos.auditoria trace   --run <dir> --row 422
+python -m experimentos.metricas --oof <dir>/oof_predictions.csv
+
+# benchmark de mineracao e dados deste relatorio
+python -m experimentos.benchmark_mineracao
+python -m experimentos.comparar_pyarc     # requer Docker (pyARC real)
+python -m experimentos.fidelidade_paper   # condicoes do artigo (MDL, 1%, sem limite) e poda
+python -m experimentos.runner --config experimentos/configs/iris.yaml --discretization mdl --prune
+python -m experimentos.gerar_relatorio --com-antigo
+\end{verbatim}
+
+\section{Nota sobre a elabora\c{c}\~ao deste documento}
+As tabelas deste relat\'orio s\~ao geradas automaticamente por \code{experimentos/gerar_relatorio.py} a partir de execu\c{c}\~oes reais, e n\~ao digitadas. A reda\c{c}\~ao foi feita com aux\'ilio do assistente Claude Code (Anthropic); os n\'umeros citados no texto foram conferidos contra as tabelas geradas.
+
+\begin{thebibliography}{9}
+\bibitem{liu98} Liu, B.; Hsu, W.; Ma, Y. Integrating Classification and Association Rule Mining. \emph{Proc. KDD-98}, pp.\ 80--86, 1998.
+\bibitem{agrawal94} Agrawal, R.; Srikant, R. Fast Algorithms for Mining Association Rules. \emph{Proc. VLDB}, 1994.
+\bibitem{han00} Han, J.; Pei, J.; Yin, Y. Mining Frequent Patterns without Candidate Generation. \emph{Proc. ACM SIGMOD}, 2000.
+\bibitem{fayyad93} Fayyad, U.; Irani, K. Multi-interval discretization of continuous-valued attributes for classification learning. \emph{Proc. IJCAI}, 1993.
+\bibitem{gorodkin04} Gorodkin, J. Comparing two K-category assignments by a K-category correlation coefficient. \emph{Computational Biology and Chemistry}, 28(5--6):367--374, 2004.
+\bibitem{efron79} Efron, B. Bootstrap methods: another look at the jackknife. \emph{The Annals of Statistics}, 7(1):1--26, 1979.
+\bibitem{fisher36} Fisher, R. A. The use of multiple measurements in taxonomic problems. \emph{Annals of Eugenics}, 7(2):179--188, 1936.
+\bibitem{quinlan93} Quinlan, J. R. \emph{C4.5: Programs for Machine Learning}. Morgan Kaufmann, 1993 (m\'etodo de poda por erro pessimista citado pelo CBA).
+\bibitem{clopper34} Clopper, C. J.; Pearson, E. S. The use of confidence or fiducial limits illustrated in the case of the binomial. \emph{Biometrika}, 26(4):404--413, 1934.
+\bibitem{pyarc} Filip, J.; Kliegr, T. pyARC. Reposit\'orio \url{https://github.com/jirifilip/pyARC} (apenas estudo, Fase~1 do projeto).
+\bibitem{rel02} Revis\~ao t\'ecnica do CBA --- Relat\'orio~02, 08/10/2026 (arquivo \emph{Relat\'orio 02 - Codigo CBA.docx}, pasta \texttt{docs}).
+\end{thebibliography}
+
+\end{document}

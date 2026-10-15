@@ -1,0 +1,7 @@
+Python 3.13.15 | Windows-11-10.0.26200-SP0 | mediana de 5 repetições alternadas
+Apriori   | pokemon discretizado (N=800, minsup=0.03, max_len=4) antes      56.9 ms | depois       4.8 ms | x11.81 | 967 itemsets
+FP-Growth | pokemon discretizado (N=800, minsup=0.03, max_len=4) antes      33.0 ms | depois      11.1 ms | x 2.97 | 967 itemsets
+Apriori   | pokemon bruto (N=800, minsup=0.03, max_len=4) antes      70.5 ms | depois       5.7 ms | x12.31 | 144 itemsets
+FP-Growth | pokemon bruto (N=800, minsup=0.03, max_len=4) antes       5.0 ms | depois       4.4 ms | x 1.13 | 144 itemsets
+Apriori   | iris discretizado (N=150, minsup=0.05, max_len=4) antes       1.7 ms | depois       0.6 ms | x 2.72 | 176 itemsets
+FP-Growth | iris discretizado (N=150, minsup=0.05, max_len=4) antes       2.1 ms | depois       0.9 ms | x 2.42 | 176 itemsets
