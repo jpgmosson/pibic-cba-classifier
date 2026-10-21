@@ -4,3 +4,4 @@ pandas==3.0.5
 numpy==2.5.3
 pyyaml==6.0.3
 pytest==9.1.1
+rich==15.0.0  # só para experimentos/mostrar_matriz.py (apresentação)

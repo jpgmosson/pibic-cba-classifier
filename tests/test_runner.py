@@ -502,3 +502,27 @@ def test_command_line_flags_select_mdl_and_pruning(results_dir):
     with open(results_dir / "resumo.csv", encoding="utf-8", newline="") as f:
         row = next(csv.DictReader(f))
     assert row["discretization_method"] == "mdl" and row["prune"] == "True" and "mdl_poda" in row["run_id"]
+
+
+# ------------------------------------------------------------ mostrar_matriz ---
+
+
+def test_mostrar_matriz_prints_the_saved_numbers_without_rerunning(tmp_path, results_dir):
+    from io import StringIO
+
+    from rich.console import Console
+
+    from experimentos.mostrar_matriz import render
+
+    path, _ = make_dataset(tmp_path)
+    run_dir = write_results(run_experiment(small_config(path)), "data").parent
+    matrix = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))["oof"]["confusion_matrix"]["matrix"]
+
+    out = StringIO()
+    render(run_dir, Console(file=out, width=100, color_system=None))
+    text = out.getvalue()
+
+    assert "Matriz de confusão" in text and "data" in text
+    assert "✔ matriz confere" in text
+    for count in (c for row in matrix for c in row):
+        assert str(count) in text
