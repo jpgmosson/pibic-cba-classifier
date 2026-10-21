@@ -55,8 +55,8 @@ def _confusion_table(cm: dict) -> Table:
     )
     table.add_column("real \\ prevista", justify="right", style="bold")
     for label in labels:
-        table.add_column(f"prev: {label}", justify="center", min_width=12)
-    table.add_column("total real", justify="right")
+        table.add_column(label, justify="center", min_width=12, style="bold")
+    table.add_column("n real", justify="right", no_wrap=True)
     for i, label in enumerate(labels):
         row_total = sum(matrix[i])
         cells = []
@@ -65,7 +65,7 @@ def _confusion_table(cm: dict) -> Table:
             text = Text(f"\n{count}\n{fraction:.1%}\n", justify="center")
             text.stylize(_cell_style(fraction, diagonal=(i == j)))
             cells.append(text)
-        table.add_row(f"real: {label}", *cells, str(row_total))
+        table.add_row(label, *cells, str(row_total))
     return table
 
 
