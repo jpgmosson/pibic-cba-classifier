@@ -1,0 +1,72 @@
+# Configuração do experimento baseline do CBA sobre o Statlog (German Credit Data),
+# UCI id 144.
+#
+# Dataset "difícil" de atributos MISTOS (7 numéricos + 13 categóricos nativos),
+# 1000 linhas, classe binária desbalanceada (1 = bom pagador, 70%; 2 = mau
+# pagador, 30%), sem valores ausentes. Há sobreposição real entre as classes: a
+# literatura geral reporta acurácias em torno de 70-78% para esse dataset, perto
+# do teto. Complementa o Mushroom (trivial, só categórico) e o Pokémon (real,
+# desbalanceado, só contínuo). Descrição e decisões: datasets/german_credit/README.md
+# e docs/ADENDO_German_Credit.md.
+
+dataset_path: datasets/german_credit/german_credit.csv
+class_column: credit_risk
+# Classe de interesse para o recall "positivo": 2 = mau pagador (a classe
+# minoritária e a de erro mais caro segundo a matriz de custos da UCI). Passa
+# pelo mesmo contrato de normalização do alvo (str).
+positive_class: "2"
+
+feature_columns:
+  - checking_status
+  - duration_months
+  - credit_history
+  - purpose
+  - credit_amount
+  - savings
+  - employment_since
+  - installment_rate
+  - personal_status_sex
+  - other_debtors
+  - residence_since
+  - property
+  - age
+  - other_installment_plans
+  - housing
+  - existing_credits
+  - job
+  - people_liable
+  - telephone
+  - foreign_worker
+
+# Os 7 atributos que o german.doc classifica como "numerical" são tratados como
+# contínuos e discretizados por igual-frequência (3 faixas, mesmo esquema do
+# Iris/Pokémon). Quatro deles têm poucos valores distintos (installment_rate,
+# residence_since, existing_credits: 4; people_liable: 2); o discretizador colapsa
+# faixas vazias e registra o número efetivo de bins (achado A07). Os 13
+# atributos qualitativos (códigos A11, A12, ...) entram como categorias nativas.
+continuous_columns:
+  - duration_months
+  - credit_amount
+  - installment_rate
+  - residence_since
+  - age
+  - existing_credits
+  - people_liable
+
+discretizar: true
+n_bins: 3
+
+# Limiares do CBA-RG, escolhidos a priori (uma única execução, sem ajuste
+# posterior). min_confidence = 0,5, igual ao Iris/Pokémon. min_support = 0,02
+# (~16 casos de treino por dobra): a classe positiva tem 30% dos dados, então
+# regras úteis para ela cobrem subgrupos pequenos, mas abaixo disso o número de
+# regras específicas com pouca evidência (20 atributos, ~60 itens) cresce muito
+# e favorece sobreajuste. max_antecedent_length = 3, convenção da baseline.
+min_support: 0.02
+min_confidence: 0.5
+max_antecedent_length: 3
+
+# Validação cruzada estratificada (divisão por linha: não há coluna de grupo).
+k_folds: 5
+seed: 42
+cb_variant: m1
