@@ -1,0 +1,64 @@
+# Configuração do experimento baseline do CBA sobre o Mushroom (UCI, id 73).
+#
+# Evidência adicional de validação da baseline em dados de formato diferente do
+# Iris/Pokémon: 8124 linhas, 22 atributos TODOS categóricos nativos (sem
+# atributos contínuos, portanto sem discretização) e classe binária quase
+# balanceada (e = comestível 51,8%; p = venenoso 48,2%). Cobre o caminho de
+# código "categórico nativo" (achado A08), antes exercitado só em testes
+# sintéticos. Descrição e decisões: datasets/mushroom/README.md e
+# docs/ADENDO_Mushroom.md.
+
+dataset_path: datasets/mushroom/mushroom.csv
+class_column: class
+# Classe de interesse para o recall "positivo": venenoso (errar um venenoso é o
+# erro caro). Verificado contra as classes do dataset pelo runner.
+positive_class: "p"
+
+# Todas as 22 colunas são preditores categóricos (feature_columns = null no
+# runner equivale a "todas menos classe/id/grupo"; listadas explicitamente aqui
+# para o config documentar o contrato). Nenhuma coluna é contínua.
+feature_columns:
+  - cap-shape
+  - cap-surface
+  - cap-color
+  - bruises
+  - odor
+  - gill-attachment
+  - gill-spacing
+  - gill-size
+  - gill-color
+  - stalk-shape
+  - stalk-root
+  - stalk-surface-above-ring
+  - stalk-surface-below-ring
+  - stalk-color-above-ring
+  - stalk-color-below-ring
+  - veil-type
+  - veil-color
+  - ring-number
+  - ring-type
+  - spore-print-color
+  - population
+  - habitat
+continuous_columns: []
+
+# Sem atributos contínuos não há o que discretizar: cada categoria vira
+# diretamente o item (coluna, valor). O valor "?" de stalk-root é uma categoria
+# do dataset original (ver README.md), não um NaN do pipeline (A03).
+discretizar: false
+
+# Limiares do CBA-RG. min_confidence = 0,5 igual ao Iris/Pokémon (limiar de
+# "mais provável que não" para classe binária). min_support = 0,01: o dataset é
+# grande (~6500 linhas de treino por dobra) e as regras discriminativas mais
+# úteis cobrem subgrupos pequenos (ex.: um odor ou cor de esporos específico);
+# 1% (~65 linhas) mantém essas regras sem explodir o número de itemsets, e fica
+# abaixo do 5% do Iris porque aqui há 117 itens distintos em vez de 12.
+# max_antecedent_length = 3, mesma convenção da baseline.
+min_support: 0.01
+min_confidence: 0.5
+max_antecedent_length: 3
+
+# Validação cruzada estratificada (divisão por linha: não há coluna de grupo).
+k_folds: 5
+seed: 42
+cb_variant: m1
