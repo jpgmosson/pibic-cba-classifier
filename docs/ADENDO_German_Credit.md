@@ -84,7 +84,7 @@ determinada** (os protocolos de validação, discretizações e pré-processamen
 Leitura honesta do resultado:
 - O ganho sobre a classe majoritária é **pequeno**: +2,5 pontos de acurácia, e o IC 95% da acurácia ([69,7%; 75,4%])
   inclui os 70% da majoritária. A acurácia sozinha não separa o modelo da baseline trivial.
-- Há **sinal real além da majoritária** nas métricas que descontam o desbalanceamento: MCC 0,29 (IC [0,23; 0,36], não
+- Há **sinal real além da majoritária** nas métricas que descontam o desbalanceamento: MCC 0,29 (IC [0,22; 0,36], não
   inclui 0), acurácia balanceada 0,63 e custo 32% menor que o de "sempre bom".
 - O modelo é **conservador com a classe minoritária**: recall de maus pagadores de 38% (precisão 56%), com 186 maus
   classificados como bons. Em parte isso reflete a precedência por confiança, que favorece a classe de 70%.
