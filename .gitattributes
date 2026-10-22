@@ -1,0 +1,15 @@
+# Quebra de linha explícita para os datasets: o conteúdo armazenado no Git e o
+# conteúdo em disco são idênticos (LF) em Windows, Linux e Mac, independentemente
+# de core.autocrlf. Isso mantém estável o SHA-256 do CSV que o runner grava em
+# config.json e que os adendos citam (docs/ADENDO_*.md).
+datasets/**/*.csv    text eol=lf
+datasets/**/*.data   text eol=lf
+datasets/**/*.names  text eol=lf
+datasets/**/*.doc    text eol=lf
+datasets/**/*.txt    text eol=lf
+datasets/**/*.md     text eol=lf
+datasets/**/*.py     text eol=lf
+datasets/**/Index*   text eol=lf
+
+# Bancos binários nunca passam por conversão de quebra de linha.
+*.sqlite             binary
