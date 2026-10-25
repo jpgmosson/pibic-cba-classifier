@@ -243,4 +243,13 @@ classe (calculadas separadamente por rótulo, e não sobre a base agrupada)
 e de critérios alternativos de ordenação de regras sobre o recall da classe
 minoritária, antes de avançar para a fase comparativa do plano.
 
+\medskip
+\noindent\textbf{Nota (achado A04 do Relatório~02).} A proposta de discretização
+calculada separadamente por rótulo foi avaliada e \textbf{rejeitada}: discretizar
+cada caso com cortes escolhidos pela sua classe verdadeira exigiria conhecer o
+alvo antes da predição, o que causa vazamento direto (e o mesmo rótulo de faixa
+passaria a significar intervalos diferentes entre classes). Não há intenção de
+implementá-la; uma discretização supervisionada legítima aprende cortes globais
+com $X$ e $y$ apenas do treino e os congela para o teste.
+
 \end{document}

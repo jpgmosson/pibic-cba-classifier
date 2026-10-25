@@ -41,7 +41,7 @@ semanais, às quintas-feiras.
 - [x] CARs (Class Association Rules)
 - [x] CBA-RG (Rule Generation)
 - [x] CBA-CB (Classifier Building) — visão geral
-- [x] Poda de regras — implementado apenas o corte de prefixo de erro mínimo do M1 (Figura 2); a poda pessimista de condições do paper **não** está implementada
+- [x] Poda de regras — implementado apenas o corte de prefixo de erro mínimo do M1 (Figura 2); a poda pessimista de condições do paper existe como opção (`prune: true`, desligada por padrão; ver `fase2_implementacao/pruning.py`)
 - [x] Ordenação das regras
 - [x] Database coverage
 - [x] Regra padrão (default rule)
