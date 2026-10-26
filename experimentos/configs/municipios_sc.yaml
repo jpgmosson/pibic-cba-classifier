@@ -1,0 +1,81 @@
+# Configuração do experimento baseline do CBA sobre os municípios de Santa Catarina.
+#
+# Dataset fornecido por um professor (Fábio, disciplina de mineração de dados) para
+# fins acadêmicos; NÃO é um dataset público tipo UCI. 292 municípios (após descartar
+# 3 linhas com ausentes), 26 atributos MISTOS (15 numéricos discretizados + 11
+# categóricos nativos), alvo binário predominance_2022 (Urbano 70,5%; Rural 29,5%).
+# Terceiro teste de robustez da baseline, depois do Mushroom (trivial) e do German
+# Credit (difícil). Descrição e decisões: docs/ADENDO_Municipios_SC.md.
+
+dataset_path: datasets/municipios_sc.csv
+class_column: predominance_2022
+# Classe de interesse para o recall "positivo": Rural, a classe minoritária.
+positive_class: "Rural"
+
+feature_columns:
+  - revenue
+  - itc
+  - iptu
+  - issqn
+  - transfer
+  - city_birth
+  - growth_2000_2010
+  - area_tot
+  - dom_tot
+  - dens_tot
+  - Population_2022
+  - pop_2010_2022
+  - growth_%_2010_2022
+  - IDH_2010
+  - qnt_pd
+  - year_MP
+  - Council_PD
+  - reason_MP
+  - predominance_2010
+  - Microrregion
+  - rgi
+  - Region
+  - Metropolitan_Region
+  - Association
+  - MP
+  - hierarchy
+
+# 15 atributos numéricos, discretizados pela rotina do projeto (igual-frequência,
+# 3 faixas, ajustada só nos dados de treino de cada dobra). É o mesmo método do
+# painel de tercis do professor, que não é reaproveitado porque seus cortes foram
+# calculados sobre todos os municípios, inclusive os de teste (ver o adendo).
+# year_MP mistura anos com o valor "non_located": entra como categórica nativa.
+continuous_columns:
+  - revenue
+  - itc
+  - iptu
+  - issqn
+  - transfer
+  - city_birth
+  - growth_2000_2010
+  - area_tot
+  - dom_tot
+  - dens_tot
+  - Population_2022
+  - pop_2010_2022
+  - growth_%_2010_2022
+  - IDH_2010
+  - qnt_pd
+
+discretizar: true
+n_bins: 3
+
+# Limiares do CBA-RG, escolhidos a priori (uma única execução, sem ajuste
+# posterior). min_support = 0,05, igual ao Iris/Pokémon: com ~233 municípios de
+# treino por dobra isso exige ~12 casos, o mínimo de evidência razoável numa base
+# tão pequena (a classe Rural tem ~69 casos no treino). min_confidence = 0,5 e
+# max_antecedent_length = 3, convenção da baseline.
+min_support: 0.05
+min_confidence: 0.5
+max_antecedent_length: 3
+
+# Validação cruzada estratificada (divisão por linha, igual ao Mushroom e ao
+# German Credit: não há coluna de grupo).
+k_folds: 5
+seed: 42
+cb_variant: m1
