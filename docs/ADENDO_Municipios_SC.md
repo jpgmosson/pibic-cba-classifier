@@ -15,10 +15,10 @@ fronteira.
 
 - **Origem:** arquivo `05_banco_disc_mineracao_final.xlsx`, enviado pelo professor Fábio (disciplina de mineração de
   dados) para fins acadêmicos. **Não é um dataset público tipo UCI**: não há página, DOI nem licença verificável.
-- **Licença: não definida.** Não há termo de uso nem confirmação de que o conjunto possa ser redistribuído. As
-  estatísticas municipais de origem (IBGE etc.) são públicas, mas a **compilação** é do professor. O `.xlsx` original
-  **não é versionado**; só o CSV limpo é. **Antes de tornar o repositório público ou citar o CSV em outro lugar, vale
-  confirmar a redistribuição com o professor.**
+- **Redistribuição: autorizada pelo professor, por mensagem.** Em 25/10/2026, pelo WhatsApp, o professor Fábio respondeu:
+  "Sim João, libero a distribuição da dataset". É um registro informal: **não há licença formal nem termo de uso**
+  (nenhuma licença do tipo CC foi atribuída ao conjunto). As estatísticas municipais de origem (IBGE etc.) são públicas, mas
+  a **compilação** é do professor. O `.xlsx` original **não é versionado**; só o CSV limpo é.
 - **Conteúdo:** aba `banco` com 295 municípios de Santa Catarina e 42 colunas (a tabela de dados começa na linha 20;
   as linhas 1-18 são um painel de estatísticas pré-calculado, não são dados). A aba `Dicionario` define as variáveis,
   mas descreve colunas que não estão na tabela (`Population_2000/2010`, `gdp_*`, `AREA_KM2_*`) e não descreve outras
@@ -137,7 +137,9 @@ dobra o prefixo do M1 é o primeiro de erro total mínimo (22–44 regras, erro 
   usam `predominance_2010` no antecedente, e o CBA coincide com a cópia de 2010 em 91,4% dos municípios. Boa parte do
   que o modelo "aprendeu" é essa persistência histórica.
 - **Onde o CBA difere da cópia.** Os erros que importam são os 31 municípios Rural em 2010 e Urbano em 2022 (mudança de
-  caráter). O CBA reduz os falsos Rural de 31 para 24, mas ao custo de subir os falsos Urbano de 1 para 17: o saldo é
+  caráter). O CBA reduz os falsos Rural de 31 para 24, mas ao custo de subir os falsos Urbano de 1 para 17 (os 24 não são
+  um subconjunto dos 31: 23 são mudanças não detectadas e 1 é um município que já era Urbano em 2010; portanto o CBA
+  acerta 31 − 23 = 8 das 31 mudanças, não 7): o saldo é
   negativo para a classe minoritária (recall Rural 0,80 contra 0,99). Há um sinal modesto sobre as mudanças, não
   suficiente para compensar.
 - **Regras sensatas.** As regras de topo são intuitivas e de confiança 100% no treino, como `Population_2022=bin2 =>
@@ -155,7 +157,7 @@ tratado explicitamente. Junto do Mushroom (só categórico, trivial), do German 
 
 Limitações: (i) a divisão é **por linha**, mas municípios vizinhos (mesma `Microrregion`, `Association`) tendem a se
 parecer; uma divisão por grupo (A06) seria mais severa e provavelmente daria um valor menor; (ii) o IC por linha com
-292 casos é largo; (iii) a redistribuição do dataset não está confirmada (seção 2).
+292 casos é largo; (iii) a autorização de redistribuição é uma mensagem do professor, sem licença formal (seção 2).
 `tests/test_municipios_sc.py` é um smoke test: carrega o config real, roda a CV, confere uma predição OOF por linha, a
 proporção da classe majoritária (206/292), acurácia abaixo de 100% (um valor perfeito indicaria vazamento) e que a
 classe minoritária é predita alguma vez; sem números exatos.

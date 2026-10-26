@@ -13,9 +13,9 @@ o CBA aprende algo real, só que não supera a persistência temporal.
 
 - **Origem:** arquivo enviado pelo professor Fábio, da disciplina de mineração de dados, para fins acadêmicos. Não é um
   dataset público (tipo UCI): não há página, DOI nem licença.
-- **Permissão de redistribuição: NÃO CONFIRMADA.** Nenhum termo de uso foi recebido e a permissão para publicar o
-  dado não está registrada no projeto. *Pendente: confirmar com o professor antes de tornar o repositório público.*
-  (O `.xlsx` original não está no repositório; só o CSV limpo.)
+- **Permissão de redistribuição: CONFIRMADA em 25/10/2026, por WhatsApp.** O professor Fábio respondeu: "Sim João,
+  libero a distribuição da dataset". É uma autorização por mensagem, sem licença formal nem termo de uso. (O `.xlsx`
+  original não está no repositório; só o CSV limpo.)
 - **Tamanho:** 295 municípios de SC e 42 colunas originais (aba `banco`; as linhas 1-18 são um painel de estatísticas do
   professor, não são dados).
 - **Alvo:** `predominance_2022`, Urbano ou Rural. Urbano quando a população em área urbana é pelo menos 50% da população
@@ -120,6 +120,11 @@ Nas regras de topo isso aparece de forma direta, por exemplo `predominance_2010=
 em 2010:
 - 85 continuaram Rural: o CBA acertou 69 e errou 16 (previu Urbano), todos casos que a cópia acertava;
 - 31 viraram Urbano: o CBA acertou **8** e errou 23 (previu Rural, como a cópia).
+
+*Por que 8 e não 7:* os falsos Rural do CBA são 24 (a cópia tem 31), mas os 24 não são um subconjunto dos 31. São 23 mudanças
+não detectadas **mais 1** município que já era Urbano em 2010 e que o CBA previu Rural. Então 31 − 23 = 8 mudanças
+acertadas; "31 − 24 = 7" mistura os dois grupos.
+
 Entre os 176 que eram Urbano em 2010, o CBA errou 2 (a cópia errou 1). Saldo: +8 − 16 − 1 = −9, que é a diferença entre
 os 41 erros do CBA e os 32 da cópia. Há sinal modesto sobre as mudanças (8 de 31 = 26%), mas ele custa mais do que rende.
 
@@ -162,8 +167,9 @@ Calculado direto das predições OOF salvas e dos nomes da planilha original; na
 | Irati | 2 069 | Rural | `Region=Chapeco AND dens_tot=bin1 AND growth_%_2010_2022=bin0` |
 
 (`binN` = faixa de tercil da coluna: `bin0` baixo, `bin1` médio, `bin2` alto. Os cortes mudam a cada dobra, pois são
-ajustados no treino.) Para os 24 "falsos Rural": 23 eram Rural em 2010, ou seja, são os municípios que mudaram e que a
-cópia também errou.
+ajustados no treino.) Para os 24 "falsos Rural": 23 eram Rural em 2010, ou seja, são municípios que mudaram e que a
+cópia também errou; o 24º já era Urbano em 2010 (erro novo do CBA). Por isso o CBA acerta 8 das 31 mudanças (31 − 23),
+e não 7 (31 − 24).
 
 ## 6. Próximos passos (só citados)
 
@@ -178,4 +184,4 @@ cópia também errou.
   seria mais severa e provavelmente daria um resultado menor.
 - Com 292 linhas, os intervalos de confiança são largos.
 - Uma execução, limiares a priori, sem ajuste.
-- A redistribuição do dataset está **pendente** (seção 1).
+- A autorização de redistribuição é uma mensagem do professor, sem licença formal (seção 1).
