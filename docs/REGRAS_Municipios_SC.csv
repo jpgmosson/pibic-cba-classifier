@@ -1,0 +1,178 @@
+dobra,posicao,antecedente,consequente,casos_antecedente_e_classe,casos_antecedente,casos_treino,suporte,confianca_fracao,confianca
+1,1,Population_2022=bin2,Urbano,78,78,233,0.334764,78/78,1.000000
+1,2,dom_tot=bin2 AND predominance_2010=Urbano,Urbano,77,77,233,0.330472,77/77,1.000000
+1,3,itc=bin2 AND predominance_2010=Urbano,Urbano,77,77,233,0.330472,77/77,1.000000
+1,4,predominance_2010=Urbano AND revenue=bin2,Urbano,77,77,233,0.330472,77/77,1.000000
+1,5,predominance_2010=Urbano AND transfer=bin2,Urbano,77,77,233,0.330472,77/77,1.000000
+1,6,predominance_2010=Urbano AND qnt_pd=bin2,Urbano,76,76,233,0.326180,76/76,1.000000
+1,7,dens_tot=bin2 AND predominance_2010=Urbano,Urbano,73,73,233,0.313305,73/73,1.000000
+1,8,growth_2000_2010=bin2 AND predominance_2010=Urbano,Urbano,72,72,233,0.309013,72/72,1.000000
+1,9,iptu=bin2 AND predominance_2010=Urbano,Urbano,72,72,233,0.309013,72/72,1.000000
+1,10,issqn=bin2 AND predominance_2010=Urbano,Urbano,70,70,233,0.300429,70/70,1.000000
+1,11,city_birth=bin1 AND predominance_2010=Urbano,Urbano,65,65,233,0.278970,65/65,1.000000
+1,12,IDH_2010=bin2 AND predominance_2010=Urbano,Urbano,62,62,233,0.266094,62/62,1.000000
+1,13,iptu=bin2 AND pop_2010_2022=bin2,Urbano,60,60,233,0.257511,60/60,1.000000
+1,14,growth_2000_2010=bin2 AND pop_2010_2022=bin2,Urbano,59,59,233,0.253219,59/59,1.000000
+1,15,itc=bin1 AND predominance_2010=Urbano,Urbano,48,48,233,0.206009,48/48,1.000000
+1,16,growth_%_2010_2022=bin0 AND predominance_2010=Urbano,Urbano,39,39,233,0.167382,39/39,1.000000
+1,17,area_tot=bin0 AND pop_2010_2022=bin2,Urbano,25,25,233,0.107296,25/25,1.000000
+1,18,growth_%_2010_2022=bin1 AND issqn=bin2,Urbano,25,25,233,0.107296,25/25,1.000000
+1,19,pop_2010_2022=bin2 AND qnt_pd=bin1,Urbano,22,22,233,0.094421,22/22,1.000000
+1,20,qnt_pd=bin2 AND year_MP=2023,Urbano,17,17,233,0.072961,17/17,1.000000
+1,21,Region=Chapeco AND city_birth=bin1 AND itc=bin1,Urbano,16,16,233,0.068670,16/16,1.000000
+1,22,IDH_2010=bin2 AND Region=Blumenau,Urbano,15,15,233,0.064378,15/15,1.000000
+1,23,dens_tot=bin1 AND growth_%_2010_2022=bin0 AND iptu=bin1,Urbano,15,15,233,0.064378,15/15,1.000000
+1,24,area_tot=bin0 AND city_birth=bin1 AND growth_%_2010_2022=bin2,Urbano,14,14,233,0.060086,14/14,1.000000
+1,25,hierarchy=Centro_Sub-Regional_A,Urbano,13,13,233,0.055794,13/13,1.000000
+1,26,Council_PD=non_located AND growth_%_2010_2022=bin0 AND predominance_2010=Rural,Rural,12,12,233,0.051502,12/12,1.000000
+1,27,IDH_2010=bin0 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,27,28,233,0.115880,27/28,0.964286
+1,28,IDH_2010=bin0 AND iptu=bin0 AND predominance_2010=Rural,Rural,24,25,233,0.103004,24/25,0.960000
+1,29,Council_PD=Yes AND dens_tot=bin1 AND dom_tot=bin1,Urbano,22,23,233,0.094421,22/23,0.956522
+1,30,Council_PD=Yes AND dens_tot=bin1 AND qnt_pd=bin2,Urbano,21,22,233,0.090129,21/22,0.954545
+1,31,dens_tot=bin0 AND predominance_2010=Rural AND revenue=bin0,Rural,33,35,233,0.141631,33/35,0.942857
+1,32,IDH_2010=bin2 AND area_tot=bin0 AND growth_%_2010_2022=bin2,Urbano,16,17,233,0.068670,16/17,0.941176
+1,33,area_tot=bin1 AND predominance_2010=Rural AND transfer=bin0,Rural,15,16,233,0.064378,15/16,0.937500
+1,34,Region=Chapeco AND city_birth=bin1 AND revenue=bin1,Urbano,14,15,233,0.060086,14/15,0.933333
+1,35,IDH_2010=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,27,29,233,0.115880,27/29,0.931034
+1,36,city_birth=bin2 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,26,28,233,0.111588,26/28,0.928571
+1,37,city_birth=bin1 AND itc=bin0 AND predominance_2010=Rural,Rural,13,14,233,0.055794,13/14,0.928571
+1,38,Region=Blumenau AND hierarchy=Centro_Local AND predominance_2010=Rural,Rural,12,13,233,0.051502,12/13,0.923077
+1,39,dens_tot=bin0 AND predominance_2010=Rural AND qnt_pd=bin2,Rural,12,13,233,0.051502,12/13,0.923077
+1,40,IDH_2010=bin0 AND dens_tot=bin0 AND itc=bin0,Rural,23,25,233,0.098712,23/25,0.920000
+1,41,dens_tot=bin0 AND issqn=bin1 AND predominance_2010=Rural,Rural,21,23,233,0.090129,21/23,0.913043
+1,42,area_tot=bin0 AND growth_%_2010_2022=bin2,Urbano,29,32,233,0.124464,29/32,0.906250
+1,43,issqn=bin1 AND itc=bin0 AND predominance_2010=Rural,Rural,18,20,233,0.077253,18/20,0.900000
+1,44,MP=yes AND dens_tot=bin1 AND growth_%_2010_2022=bin0,Urbano,23,26,233,0.098712,23/26,0.884615
+2,1,predominance_2010=Urbano AND qnt_pd=bin2,Urbano,83,83,233,0.356223,83/83,1.000000
+2,2,Population_2022=bin2,Urbano,78,78,233,0.334764,78/78,1.000000
+2,3,dom_tot=bin2 AND predominance_2010=Urbano,Urbano,76,76,233,0.326180,76/76,1.000000
+2,4,itc=bin2 AND predominance_2010=Urbano,Urbano,76,76,233,0.326180,76/76,1.000000
+2,5,predominance_2010=Urbano AND revenue=bin2,Urbano,76,76,233,0.326180,76/76,1.000000
+2,6,dens_tot=bin2 AND predominance_2010=Urbano,Urbano,75,75,233,0.321888,75/75,1.000000
+2,7,issqn=bin2 AND predominance_2010=Urbano,Urbano,74,74,233,0.317597,74/74,1.000000
+2,8,growth_2000_2010=bin2 AND predominance_2010=Urbano,Urbano,72,72,233,0.309013,72/72,1.000000
+2,9,IDH_2010=bin2 AND predominance_2010=Urbano,Urbano,65,65,233,0.278970,65/65,1.000000
+2,10,city_birth=bin1 AND predominance_2010=Urbano,Urbano,62,62,233,0.266094,62/62,1.000000
+2,11,dens_tot=bin2 AND growth_2000_2010=bin2,Urbano,58,58,233,0.248927,58/58,1.000000
+2,12,growth_%_2010_2022=bin2 AND growth_2000_2010=bin2,Urbano,58,58,233,0.248927,58/58,1.000000
+2,13,issqn=bin2 AND pop_2010_2022=bin2,Urbano,55,55,233,0.236052,55/55,1.000000
+2,14,iptu=bin1 AND predominance_2010=Urbano,Urbano,50,50,233,0.214592,50/50,1.000000
+2,15,predominance_2010=Urbano AND revenue=bin1,Urbano,50,50,233,0.214592,50/50,1.000000
+2,16,issqn=bin1 AND predominance_2010=Urbano,Urbano,40,40,233,0.171674,40/40,1.000000
+2,17,dens_tot=bin0 AND predominance_2010=Rural AND revenue=bin0,Rural,40,40,233,0.171674,40/40,1.000000
+2,18,city_birth=bin2 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,30,30,233,0.128755,30/30,1.000000
+2,19,IDH_2010=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,29,29,233,0.124464,29/29,1.000000
+2,20,qnt_pd=bin2 AND year_MP=2023,Urbano,19,19,233,0.081545,19/19,1.000000
+2,21,Council_PD=Yes AND Region=Chapeco AND area_tot=bin1,Urbano,19,19,233,0.081545,19/19,1.000000
+2,22,Region=Chapeco AND city_birth=bin1 AND dom_tot=bin1,Urbano,16,16,233,0.068670,16/16,1.000000
+2,23,Region=Chapeco AND city_birth=bin1 AND revenue=bin1,Urbano,15,15,233,0.064378,15/15,1.000000
+2,24,IDH_2010=bin2 AND Region=Blumenau,Urbano,14,14,233,0.060086,14/14,1.000000
+2,25,city_birth=bin1 AND dens_tot=bin1 AND growth_%_2010_2022=bin0,Urbano,14,14,233,0.060086,14/14,1.000000
+2,26,Council_PD=non_located AND IDH_2010=bin0 AND predominance_2010=Rural,Rural,13,13,233,0.055794,13/13,1.000000
+2,27,Council_PD=non_located AND growth_%_2010_2022=bin0 AND itc=bin0,Rural,13,13,233,0.055794,13/13,1.000000
+2,28,IDH_2010=bin2 AND area_tot=bin0 AND growth_%_2010_2022=bin2,Urbano,13,13,233,0.055794,13/13,1.000000
+2,29,Metropolitan_Region=Contestado AND dom_tot=bin1,Urbano,12,12,233,0.051502,12/12,1.000000
+2,30,Region=Criciuma AND area_tot=bin0,Urbano,12,12,233,0.051502,12/12,1.000000
+2,31,Region=Blumenau AND dens_tot=bin0 AND predominance_2010=Rural,Rural,12,12,233,0.051502,12/12,1.000000
+2,32,area_tot=bin2 AND iptu=bin2,Urbano,34,35,233,0.145923,34/35,0.971429
+2,33,IDH_2010=bin0 AND iptu=bin0 AND predominance_2010=Rural,Rural,23,24,233,0.098712,23/24,0.958333
+2,34,MP=yes AND dens_tot=bin1 AND growth_%_2010_2022=bin0,Urbano,23,24,233,0.098712,23/24,0.958333
+3,1,Population_2022=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+3,2,dom_tot=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+3,3,predominance_2010=Urbano AND revenue=bin2,Urbano,76,76,234,0.324786,76/76,1.000000
+3,4,predominance_2010=Urbano AND transfer=bin2,Urbano,76,76,234,0.324786,76/76,1.000000
+3,5,predominance_2010=Urbano AND qnt_pd=bin2,Urbano,74,74,234,0.316239,74/74,1.000000
+3,6,dens_tot=bin2 AND predominance_2010=Urbano,Urbano,72,72,234,0.307692,72/72,1.000000
+3,7,issqn=bin2 AND predominance_2010=Urbano,Urbano,72,72,234,0.307692,72/72,1.000000
+3,8,growth_2000_2010=bin2 AND predominance_2010=Urbano,Urbano,71,71,234,0.303419,71/71,1.000000
+3,9,iptu=bin2 AND predominance_2010=Urbano,Urbano,69,69,234,0.294872,69/69,1.000000
+3,10,IDH_2010=bin2 AND predominance_2010=Urbano,Urbano,65,65,234,0.277778,65/65,1.000000
+3,11,city_birth=bin1 AND predominance_2010=Urbano,Urbano,65,65,234,0.277778,65/65,1.000000
+3,12,growth_2000_2010=bin2 AND pop_2010_2022=bin2,Urbano,58,58,234,0.247863,58/58,1.000000
+3,13,iptu=bin1 AND predominance_2010=Urbano,Urbano,49,49,234,0.209402,49/49,1.000000
+3,14,IDH_2010=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,28,28,234,0.119658,28/28,1.000000
+3,15,issqn=bin2 AND qnt_pd=bin1,Urbano,27,27,234,0.115385,27/27,1.000000
+3,16,area_tot=bin0 AND pop_2010_2022=bin2,Urbano,23,23,234,0.098291,23/23,1.000000
+3,17,Region=Chapeco AND city_birth=bin1 AND itc=bin1,Urbano,19,19,234,0.081197,19/19,1.000000
+3,18,area_tot=bin2 AND dens_tot=bin1,Urbano,18,18,234,0.076923,18/18,1.000000
+3,19,IDH_2010=bin0 AND city_birth=bin2 AND growth_2000_2010=bin0,Rural,17,17,234,0.072650,17/17,1.000000
+3,20,qnt_pd=bin2 AND year_MP=2023,Urbano,15,15,234,0.064103,15/15,1.000000
+3,21,city_birth=bin1 AND growth_2000_2010=bin2 AND qnt_pd=bin1,Urbano,15,15,234,0.064103,15/15,1.000000
+3,22,Population_2022=bin1 AND area_tot=bin0 AND itc=bin1,Urbano,14,14,234,0.059829,14/14,1.000000
+3,23,Region=Blumenau AND hierarchy=Centro_Local AND predominance_2010=Rural,Rural,14,14,234,0.059829,14/14,1.000000
+3,24,Region=Chapeco AND city_birth=bin1 AND pop_2010_2022=bin1,Urbano,14,14,234,0.059829,14/14,1.000000
+3,25,area_tot=bin2 AND itc=bin0 AND predominance_2010=Rural,Rural,14,14,234,0.059829,14/14,1.000000
+3,26,Metropolitan_Region=Contestado AND dom_tot=bin1,Urbano,13,13,234,0.055556,13/13,1.000000
+3,27,Region=Criciuma AND area_tot=bin0,Urbano,13,13,234,0.055556,13/13,1.000000
+3,28,Council_PD=non_located AND IDH_2010=bin0 AND predominance_2010=Rural,Rural,13,13,234,0.055556,13/13,1.000000
+3,29,Council_PD=non_located AND city_birth=bin2 AND growth_%_2010_2022=bin0,Rural,13,13,234,0.055556,13/13,1.000000
+3,30,growth_%_2010_2022=bin2 AND issqn=bin0,Urbano,12,12,234,0.051282,12/12,1.000000
+3,31,Council_PD=Yes AND Metropolitan_Region=Contestado AND area_tot=bin1,Urbano,12,12,234,0.051282,12/12,1.000000
+3,32,dens_tot=bin0 AND predominance_2010=Rural AND revenue=bin0,Rural,33,34,234,0.141026,33/34,0.970588
+3,33,area_tot=bin2 AND iptu=bin2,Urbano,31,32,234,0.132479,31/32,0.968750
+3,34,Council_PD=Yes AND dens_tot=bin1 AND qnt_pd=bin2,Urbano,25,26,234,0.106838,25/26,0.961538
+3,35,Council_PD=Yes AND IDH_2010=bin2 AND issqn=bin0,Urbano,18,19,234,0.076923,18/19,0.947368
+3,36,dens_tot=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,34,36,234,0.145299,34/36,0.944444
+3,37,IDH_2010=bin0 AND area_tot=bin2 AND predominance_2010=Rural,Rural,17,18,234,0.072650,17/18,0.944444
+3,38,IDH_2010=bin0 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,31,33,234,0.132479,31/33,0.939394
+3,39,Region=Blumenau AND predominance_2010=Rural,Rural,15,16,234,0.064103,15/16,0.937500
+3,40,city_birth=bin1 AND itc=bin0 AND predominance_2010=Rural,Rural,12,13,234,0.051282,12/13,0.923077
+3,41,MP=yes AND dens_tot=bin1 AND growth_%_2010_2022=bin0,Urbano,20,22,234,0.085470,20/22,0.909091
+4,1,predominance_2010=Urbano AND qnt_pd=bin2,Urbano,79,79,234,0.337607,79/79,1.000000
+4,2,Population_2022=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+4,3,itc=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+4,4,revenue=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+4,5,transfer=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+4,6,dens_tot=bin2 AND predominance_2010=Urbano,Urbano,74,74,234,0.316239,74/74,1.000000
+4,7,issqn=bin2 AND predominance_2010=Urbano,Urbano,72,72,234,0.307692,72/72,1.000000
+4,8,growth_2000_2010=bin2 AND predominance_2010=Urbano,Urbano,71,71,234,0.303419,71/71,1.000000
+4,9,iptu=bin2 AND predominance_2010=Urbano,Urbano,71,71,234,0.303419,71/71,1.000000
+4,10,IDH_2010=bin2 AND predominance_2010=Urbano,Urbano,63,63,234,0.269231,63/63,1.000000
+4,11,growth_%_2010_2022=bin2 AND predominance_2010=Urbano,Urbano,63,63,234,0.269231,63/63,1.000000
+4,12,dens_tot=bin2 AND pop_2010_2022=bin2,Urbano,62,62,234,0.264957,62/62,1.000000
+4,13,city_birth=bin1 AND predominance_2010=Urbano,Urbano,61,61,234,0.260684,61/61,1.000000
+4,14,growth_%_2010_2022=bin2 AND growth_2000_2010=bin2 AND pop_2010_2022=bin2,Urbano,52,52,234,0.222222,52/52,1.000000
+4,15,growth_2000_2010=bin1 AND predominance_2010=Urbano,Urbano,49,49,234,0.209402,49/49,1.000000
+4,16,itc=bin1 AND predominance_2010=Urbano,Urbano,48,48,234,0.205128,48/48,1.000000
+4,17,growth_%_2010_2022=bin2 AND issqn=bin2,Urbano,43,43,234,0.183761,43/43,1.000000
+4,18,issqn=bin1 AND predominance_2010=Urbano,Urbano,38,38,234,0.162393,38/38,1.000000
+4,19,area_tot=bin2 AND iptu=bin2,Urbano,32,32,234,0.136752,32/32,1.000000
+4,20,IDH_2010=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,29,29,234,0.123932,29/29,1.000000
+4,21,area_tot=bin2 AND dens_tot=bin1,Urbano,20,20,234,0.085470,20/20,1.000000
+4,22,area_tot=bin2 AND growth_%_2010_2022=bin2,Urbano,20,20,234,0.085470,20/20,1.000000
+4,23,IDH_2010=bin2 AND Region=Blumenau,Urbano,18,18,234,0.076923,18/18,1.000000
+4,24,Population_2022=bin1 AND Region=Chapeco AND city_birth=bin1,Urbano,18,18,234,0.076923,18/18,1.000000
+4,25,Region=Chapeco AND city_birth=bin1 AND itc=bin1,Urbano,17,17,234,0.072650,17/17,1.000000
+4,26,Region=Chapeco AND city_birth=bin1 AND growth_%_2010_2022=bin1,Urbano,15,15,234,0.064103,15/15,1.000000
+4,27,IDH_2010=bin0 AND area_tot=bin2 AND predominance_2010=Rural,Rural,14,14,234,0.059829,14/14,1.000000
+4,28,area_tot=bin0 AND city_birth=bin1 AND growth_2000_2010=bin2,Urbano,14,14,234,0.059829,14/14,1.000000
+4,29,qnt_pd=bin2 AND year_MP=2023,Urbano,13,13,234,0.055556,13/13,1.000000
+4,30,IDH_2010=bin2 AND MP=yes AND growth_%_2010_2022=bin2,Urbano,35,36,234,0.149573,35/36,0.972222
+4,31,dens_tot=bin0 AND predominance_2010=Rural AND revenue=bin0,Rural,35,36,234,0.149573,35/36,0.972222
+4,32,dens_tot=bin0 AND growth_%_2010_2022=bin0 AND predominance_2010=Rural,Rural,32,33,234,0.136752,32/33,0.969697
+4,33,city_birth=bin2 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,29,30,234,0.123932,29/30,0.966667
+4,34,MP=yes AND Region=Chapeco AND dom_tot=bin1,Urbano,21,22,234,0.089744,21/22,0.954545
+4,35,dens_tot=bin0 AND growth_2000_2010=bin0 AND predominance_2010=Rural,Rural,34,36,234,0.145299,34/36,0.944444
+4,36,MP=yes AND Microrregion=Joacaba,Urbano,16,17,234,0.068376,16/17,0.941176
+5,1,predominance_2010=Urbano,Urbano,143,143,234,0.611111,143/143,1.000000
+5,2,Population_2022=bin2,Urbano,78,78,234,0.333333,78/78,1.000000
+5,3,IDH_2010=bin0 AND itc=bin0 AND predominance_2010=Rural,Rural,31,31,234,0.132479,31/31,1.000000
+5,4,IDH_2010=bin0 AND Population_2022=bin0 AND predominance_2010=Rural,Rural,25,25,234,0.106838,25/25,1.000000
+5,5,Region=Chapeco AND dom_tot=bin1 AND itc=bin1,Urbano,25,25,234,0.106838,25/25,1.000000
+5,6,area_tot=bin0 AND pop_2010_2022=bin2,Urbano,21,21,234,0.089744,21/21,1.000000
+5,7,IDH_2010=bin2 AND Region=Blumenau,Urbano,18,18,234,0.076923,18/18,1.000000
+5,8,city_birth=bin1 AND itc=bin0 AND predominance_2010=Rural,Rural,16,16,234,0.068376,16/16,1.000000
+5,9,Council_PD=non_located AND IDH_2010=bin0 AND predominance_2010=Rural,Rural,14,14,234,0.059829,14/14,1.000000
+5,10,dens_tot=bin1 AND growth_%_2010_2022=bin0 AND iptu=bin1,Urbano,14,14,234,0.059829,14/14,1.000000
+5,11,Population_2022=bin0 AND city_birth=bin1 AND predominance_2010=Rural,Rural,13,13,234,0.055556,13/13,1.000000
+5,12,area_tot=bin2 AND iptu=bin0 AND predominance_2010=Rural,Rural,13,13,234,0.055556,13/13,1.000000
+5,13,Metropolitan_Region=Contestado AND itc=bin1,Urbano,12,12,234,0.051282,12/12,1.000000
+5,14,issqn=bin0 AND itc=bin1,Urbano,12,12,234,0.051282,12/12,1.000000
+5,15,dens_tot=bin0 AND predominance_2010=Rural AND transfer=bin0,Rural,37,38,234,0.158120,37/38,0.973684
+5,16,issqn=bin1 AND itc=bin0 AND predominance_2010=Rural,Rural,21,22,234,0.089744,21/22,0.954545
+5,17,dens_tot=bin0 AND issqn=bin1 AND predominance_2010=Rural,Rural,20,21,234,0.085470,20/21,0.952381
+5,18,IDH_2010=bin0 AND issqn=bin0 AND predominance_2010=Rural,Rural,19,20,234,0.081197,19/20,0.950000
+5,19,IDH_2010=bin0 AND dens_tot=bin0 AND predominance_2010=Rural,Rural,32,34,234,0.136752,32/34,0.941176
+5,20,Population_2022=bin0 AND issqn=bin1 AND predominance_2010=Rural,Rural,16,17,234,0.068376,16/17,0.941176
+5,21,dom_tot=bin0 AND issqn=bin1 AND predominance_2010=Rural,Rural,16,17,234,0.068376,16/17,0.941176
+5,22,Region=Chapeco AND dens_tot=bin1 AND growth_%_2010_2022=bin0,Urbano,14,15,234,0.059829,14/15,0.933333
