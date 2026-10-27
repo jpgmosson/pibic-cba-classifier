@@ -25,3 +25,7 @@ experimentos/resultados/*
 *.toc
 *.out
 *.synctex.gz
+
+# Planilha bruta enviada pelo professor Fábio: não é versionada. O CSV processado
+# (datasets/municipios_sc.csv) e o script que o gera (datasets/preparar_municipios_sc.py) já estão no repositório.
+datasets/05_banco_disc_mineracao_final.xlsx
