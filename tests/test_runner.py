@@ -526,3 +526,36 @@ def test_mostrar_matriz_prints_the_saved_numbers_without_rerunning(tmp_path, res
     assert "✔ matriz confere" in text
     for count in (c for row in matrix for c in row):
         assert str(count) in text
+
+
+# ----------------------------------------------------------------- --show-rules ---
+
+
+def test_show_rules_only_adds_text_and_never_changes_the_numbers(results_dir, capsys):
+    argv = ["--config", str(runner.REPO_ROOT / "experimentos" / "configs" / "iris.yaml")]
+    runner.main(argv)
+    without = capsys.readouterr().out
+    runner.main(argv + ["--show-rules"])
+    with_rules = capsys.readouterr().out
+
+    assert "Regras finais do classificador" not in without
+    assert "Regras finais do classificador" in with_rules
+    stable = ("Acurácia média", "OOF:", "Baseline classe", "Incerteza", "Regras candidatas", "Matriz de confusão")
+    pick = lambda text: [line for line in text.splitlines() if line.startswith(stable)]  # noqa: E731
+    assert pick(without) == pick(with_rules) and len(pick(without)) == len(stable)
+
+
+def test_show_rules_lists_each_fold_in_priority_order(tmp_path):
+    path, _ = make_dataset(tmp_path)
+    run = run_experiment(small_config(path))
+    text = "\n".join(runner.format_final_rules(run))
+    class_column = run["summary"]["config"]["class_column"]
+
+    for index, fold in enumerate(run["summary"]["folds"]):
+        header = f"=== Dobra {index + 1} de {len(run['summary']['folds'])}: {fold['num_final_rules']} regras"
+        assert header in text
+    assert f"{class_column}=" not in text  # a classe aparece sem o prefixo da coluna
+    block = text.split("=== Dobra 1 ")[1].split("=== Dobra 2 ")[0]
+    confidences = [float(line.split("confiança ")[1].split(",")[0]) for line in block.splitlines() if "=>" in line]
+    assert len(confidences) == run["summary"]["folds"][0]["num_final_rules"]
+    assert confidences == sorted(confidences, reverse=True)

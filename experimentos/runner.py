@@ -814,6 +814,31 @@ def write_results(run: dict, dataset_name: str) -> Path:
     return detail_path
 
 
+def format_final_rules(run: dict) -> list[str]:
+    """Linhas de texto com as regras finais de cada dobra, na ordem de prioridade do classificador.
+
+    Só formata o que ``run_experiment`` já calculou (``artifacts["rules"]``); não recalcula nada.
+    """
+    class_prefix = f"{run['summary']['config']['class_column']}="
+    n_folds = len(run["summary"]["folds"])
+    lines = ["", "Regras finais do classificador (a primeira regra que casa decide; se nenhuma casar, vale a classe padrão):"]
+    for fold_index, fold in enumerate(run["summary"]["folds"]):
+        final = sorted(
+            (r for r in run["artifacts"]["rules"][fold_index] if r["final_position"] is not None),
+            key=lambda r: r["final_position"],
+        )
+        lines.append("")
+        lines.append(f"=== Dobra {fold_index + 1} de {n_folds}: {len(final)} regras | classe padrão: {fold['default_class']} ===")
+        for r in final:
+            antecedent = " AND ".join(r["antecedent"])
+            consequent = r["consequent"].removeprefix(class_prefix)
+            lines.append(
+                f"{r['final_position'] + 1:>3}. {antecedent} => {consequent} "
+                f"(confiança {r['confidence_float']:.4f}, suporte {r['support_float']:.4f})"
+            )
+    return lines
+
+
 def main(argv: list[str] | None = None) -> None:
     # Garante saída em UTF-8 mesmo em consoles Windows configurados com uma
     # codepage legada (evita caracteres acentuados corrompidos no terminal).
@@ -846,6 +871,11 @@ def main(argv: list[str] | None = None) -> None:
         "--split",
         choices=["group", "row"],
         help="Protocolo de divisão: 'group' (por group_column) ou 'row' (por linha). Padrão: group se o config define group_column.",
+    )
+    parser.add_argument(
+        "--show-rules",
+        action="store_true",
+        help="Depois do resultado, imprime as regras finais de cada dobra (só visibilidade: não altera nenhum número).",
     )
     args = parser.parse_args(argv)
 
@@ -911,6 +941,8 @@ def main(argv: list[str] | None = None) -> None:
     except ValueError:  # diretório de resultados fora do repositório
         pass
     print(f"Detalhes salvos em: {shown}")
+    if args.show_rules:
+        print("\n".join(format_final_rules(run)))
 
 
 if __name__ == "__main__":
